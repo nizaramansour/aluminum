@@ -1,0 +1,1835 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Alumill Tech Gulf — TDS Generator</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+  :root{
+    --ink:#141d24; --steel:#2f5d76; --steel-dark:#20404f;
+    --brass:#9c6b2e; --brass-light:#c99a5b; --paper:#f5f4f0;
+    --alu-1:#e9ecef; --alu-2:#c9d1d8; --alu-3:#9aa7b0; --line:#d7d3c8;
+    --good:#3d6b3d; --danger:#9c3b2e; --radius:2px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; font-family:'IBM Plex Sans',sans-serif; background:var(--paper); color:var(--ink);}
+  .app{display:grid; grid-template-columns:400px 1fr; gap:0; min-height:100vh;}
+  @media (max-width:900px){ .app{grid-template-columns:1fr;} }
+
+  .config{background:#fff; border-right:1px solid var(--line); padding:22px 22px 40px;}
+  .brand-mini{display:flex; align-items:center; gap:10px; margin-bottom:18px; padding-bottom:16px; border-bottom:2px solid var(--ink);}
+  .brand-mini .mark{
+    width:36px;height:36px;border-radius:50%;
+    background:linear-gradient(135deg,var(--alu-1),var(--alu-3) 45%,var(--alu-1) 55%,var(--alu-2));
+    border:1px solid var(--alu-3); display:flex;align-items:center;justify-content:center;
+    font-family:'Barlow Semi Condensed',sans-serif;font-weight:700; color:var(--steel-dark); font-size:14px; letter-spacing:0.5px;
+  }
+  .brand-mini .txt h1{font-family:'Barlow Semi Condensed',sans-serif; font-size:16px; font-weight:700; margin:0; letter-spacing:0.3px; text-transform:uppercase;}
+  .brand-mini .txt p{margin:1px 0 0; font-size:11px; color:var(--alu-3); font-weight:500;}
+
+  .eyebrow{
+    font-family:'Barlow Semi Condensed',sans-serif; font-size:12px; font-weight:700; text-transform:uppercase;
+    letter-spacing:1.2px; color:var(--steel); margin:22px 0 8px; display:flex; align-items:center; gap:6px;
+  }
+  .eyebrow:first-of-type{margin-top:0;}
+  .eyebrow .num{color:var(--brass);}
+
+  label{display:block; font-size:12px; font-weight:600; margin:12px 0 4px; color:#3a3f44;}
+  input[type=text], input[type=number], input[type=password], select, textarea{
+    width:100%; padding:9px 10px; font-size:13.5px; font-family:'IBM Plex Sans',sans-serif;
+    border:1px solid var(--alu-3); border-radius:var(--radius); background:#fff; color:var(--ink);
+  }
+  select{cursor:pointer;}
+  input:focus, select:focus, textarea:focus{outline:2px solid var(--steel); outline-offset:1px;}
+  .row2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .row3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;}
+
+  .hint{font-size:10.5px; color:#8a8a82; margin-top:3px; line-height:1.4;}
+
+  .btnbar{margin-top:22px; display:flex; gap:8px; flex-wrap:wrap;}
+  button{
+    font-family:'IBM Plex Sans',sans-serif; font-weight:600; font-size:13px;
+    padding:10px 14px; border-radius:var(--radius); border:1px solid var(--ink);
+    background:var(--ink); color:#fff; cursor:pointer;
+  }
+  button.secondary{background:#fff; color:var(--ink);}
+  button.ghost{background:#fff; color:var(--steel); border-color:var(--steel); font-size:11.5px; padding:6px 10px;}
+  button.danger-btn{background:#fff; color:var(--danger); border-color:var(--danger); font-size:11.5px; padding:5px 8px;}
+  button:hover{opacity:0.88;}
+  button:focus-visible{outline:2px solid var(--brass); outline-offset:2px;}
+
+  .lib{margin-top:26px; border:1px solid var(--alu-3); border-radius:var(--radius); overflow:hidden;}
+  .lib summary{
+    list-style:none; cursor:pointer; padding:10px 12px; background:var(--alu-1);
+    display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:700;
+    font-family:'Barlow Semi Condensed',sans-serif; text-transform:uppercase; letter-spacing:0.6px; color:var(--steel-dark);
+  }
+  .lib summary::-webkit-details-marker{display:none;}
+  .lib summary .lock{display:inline-flex; align-items:center; justify-content:center; width:16px;height:16px; border-radius:50%; background:var(--brass); color:#fff; font-size:9px;}
+  .lib summary .tag{
+    margin-left:auto; font-size:9.5px; font-weight:600; letter-spacing:0.4px; text-transform:none; color:var(--brass);
+    border:1px solid var(--brass-light); padding:2px 6px; border-radius:10px; background:#fdf6ec;
+  }
+  .lib summary .tag.admin{color:var(--danger); border-color:var(--danger); background:#fdecec;}
+  .lib-body{padding:10px 12px 14px; background:#fff;}
+  .lib-body p.note{font-size:11px; color:#666; margin:0 0 10px; line-height:1.5;}
+  table.libtable{width:100%; border-collapse:collapse; font-size:11px; font-family:'IBM Plex Mono',monospace; margin-bottom:6px;}
+  table.libtable th, table.libtable td{border:1px solid var(--line); padding:4px 5px; text-align:left;}
+  table.libtable th{
+    background:var(--alu-1); font-family:'IBM Plex Sans',sans-serif; font-size:9.5px;
+    text-transform:uppercase; letter-spacing:0.3px; color:var(--steel-dark); font-weight:700;
+  }
+  table.libtable td.locked{color:#555; background:#fafafa;}
+  table.libtable input{width:100%; padding:2px 4px; font-size:11px; border:1px solid var(--alu-2);}
+  .unverified{color:var(--brass); font-style:italic;}
+
+  .disclaimer{margin-top:18px; font-size:10.5px; line-height:1.5; color:#7a7a72; border-left:3px solid var(--brass-light); padding:8px 10px; background:#fdfaf4;}
+
+  .tabs{display:flex; gap:0; margin:18px 0 4px; border:1px solid var(--ink); border-radius:var(--radius); overflow:hidden;}
+  .tab{flex:1; background:#fff; color:var(--ink); border:none; border-radius:0; font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.3px; padding:9px 4px; cursor:pointer;}
+  .tab + .tab{border-left:1px solid var(--ink);}
+  .tab.active{background:var(--ink); color:#fff;}
+  .tab.admin-tab.active{background:var(--danger); border-color:var(--danger);}
+  .hidden{display:none !important;}
+
+  .required-mark{color:var(--danger);}
+  select.invalid, input.invalid{border-color:var(--danger); outline:2px solid var(--danger); outline-offset:1px;}
+  .field-warn{font-size:10.5px; color:var(--danger); margin-top:4px; display:none;}
+  .field-warn.show{display:block;}
+
+  .alloy-check-list{border:1px solid var(--alu-3); border-radius:var(--radius); margin-top:6px;}
+  .alloy-check-row{display:flex; align-items:center; gap:8px; padding:8px 10px; border-bottom:1px solid var(--line); font-size:13px;}
+  .alloy-check-row:last-child{border-bottom:none;}
+  .alloy-check-row input{width:auto; margin:0;}
+  .alloy-check-row label{margin:0; font-weight:500; cursor:pointer;}
+  .check-actions{display:flex; gap:8px; margin-top:8px;}
+  .check-actions button{padding:6px 10px; font-size:11.5px;}
+
+  table.cmp{width:100%; border-collapse:collapse; margin-bottom:2px;}
+  table.cmp caption{
+    text-align:left; padding:10px 14px 6px; font-family:'Barlow Semi Condensed',sans-serif; font-weight:700;
+    font-size:12.5px; text-transform:uppercase; letter-spacing:0.5px; color:var(--steel-dark); background:var(--alu-1); caption-side:top;
+  }
+  table.cmp thead th{background:#fff; text-align:left; font-size:9.5px; text-transform:uppercase; letter-spacing:0.3px; padding:7px 8px; color:var(--steel-dark); border-bottom:2px solid var(--ink); font-family:'IBM Plex Sans',sans-serif;}
+  table.cmp td{padding:7px 8px; border-bottom:1px solid var(--line); font-size:11px; font-family:'IBM Plex Mono',monospace;}
+  table.cmp td.alloyname{font-family:'IBM Plex Sans',sans-serif; font-weight:700;}
+  table.cmp tbody tr:nth-child(even){background:#fbfbf9;}
+
+  /* admin main-window panel */
+  .admin-main-panel{
+    width:100%; max-width:1100px; background:#fff; border-radius:4px;
+    box-shadow:0 10px 30px rgba(20,29,36,0.18); padding:26px 30px 40px;
+  }
+  .admin-main-header{border-bottom:3px solid var(--danger); padding-bottom:14px; margin-bottom:18px;}
+  .admin-main-header h2{margin:0 0 6px; font-family:'Barlow Semi Condensed',sans-serif; font-size:22px; text-transform:uppercase; letter-spacing:0.4px; color:var(--danger);}
+  .admin-main-header p{margin:0; font-size:12.5px; color:#666;}
+  .admin-main-panel .admin-panel{margin-bottom:14px;}
+  .admin-main-panel .admin-section{padding:14px 16px;}
+  .field-label{display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:0.3px; color:var(--steel-dark); font-weight:700; margin-bottom:2px;}
+  .mini-label{display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:0.3px; color:var(--steel-dark); font-weight:700; margin-bottom:2px;}
+  .field-grid-header{display:flex; gap:6px; font-size:9.5px; text-transform:uppercase; letter-spacing:0.3px; color:#999; font-weight:700; padding:0 0 4px;}
+  .field-with-label{display:flex; flex-direction:column; gap:2px; flex:1;}
+  table.band-table{width:100%; border-collapse:collapse; margin-top:6px; margin-bottom:8px;}
+  table.band-table th{
+    background:var(--alu-1); font-size:9.5px; text-transform:uppercase; letter-spacing:0.3px;
+    color:var(--steel-dark); font-weight:700; padding:6px 5px; text-align:left; border:1px solid var(--line);
+  }
+  table.band-table td{padding:4px 5px; border:1px solid var(--line);}
+  table.band-table input{width:100%; padding:5px 6px; font-size:12px; border:1px solid var(--alu-2);}
+  .rule-field-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:10px;}
+  .rule-field-grid.cols2{grid-template-columns:repeat(2,1fr);}
+
+  /* collapsible per-alloy blocks in Admin */
+  details.alloy-collapse{border:1px solid var(--line); border-radius:var(--radius); margin-bottom:8px; background:#fff;}
+  details.alloy-collapse summary{
+    cursor:pointer; padding:9px 12px; background:var(--alu-1); font-weight:700; font-size:12.5px;
+    list-style:none; display:flex; align-items:center; gap:6px;
+  }
+  details.alloy-collapse summary::-webkit-details-marker{display:none;}
+  details.alloy-collapse summary::before{content:"▸"; color:var(--brass); font-size:10px; transition:transform 0.15s;}
+  details.alloy-collapse[open] summary::before{transform:rotate(90deg);}
+  .alloy-collapse-body{padding:12px;}
+  .temper-chip-list{display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;}
+  .temper-chip{
+    font-family:'IBM Plex Mono',monospace; font-size:11px; background:var(--alu-1); border:1px solid var(--alu-3);
+    border-radius:10px; padding:3px 9px; color:var(--steel-dark);
+  }
+
+  .admin-gate{padding:14px; border:1px dashed var(--danger); border-radius:var(--radius); background:#fff8f6;}
+  
+  .admin-panel{border:1px solid var(--danger); border-radius:var(--radius); margin-top:12px;}
+  .admin-panel > summary{
+    background:#fdecec; color:var(--danger); list-style:none; cursor:pointer; padding:9px 12px;
+    font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;
+    font-family:'Barlow Semi Condensed',sans-serif;
+  }
+  .admin-panel > summary::-webkit-details-marker{display:none;}
+  .admin-section{padding:12px; border-top:1px solid #f3d4d4;}
+  .admin-section h4{margin:0 0 6px; font-size:11.5px; text-transform:uppercase; letter-spacing:0.4px; color:var(--steel-dark);}
+  .status-line{font-size:11px; margin-top:8px; padding:6px 8px; border-radius:var(--radius); background:var(--alu-1); color:#444;}
+  .product-row, .rule-row{display:flex; gap:6px; align-items:center; margin-bottom:6px;}
+  .product-row input, .rule-row input, .rule-row select{flex:1; font-size:11.5px; padding:5px 6px;}
+  .band-block{border:1px solid var(--line); border-radius:var(--radius); padding:8px; margin-bottom:8px;}
+  .band-block h5{margin:0 0 6px; font-size:11px; text-transform:uppercase; color:var(--brass);}
+  .newalloy-form{display:none; border:1px solid var(--line); border-radius:var(--radius); padding:10px; margin-top:8px; background:#fbfbf9;}
+  .newalloy-form.show{display:block;}
+  .newalloy-form .row3{margin-bottom:6px;}
+
+  .preview-wrap{padding:32px; display:flex; justify-content:center; align-items:flex-start; background:repeating-linear-gradient(135deg,#eceae4 0 2px,#f5f4f0 2px 40px);}
+  .sheet{width:100%; max-width:940px; background:#fff; box-shadow:0 10px 30px rgba(20,29,36,0.18); padding:0; position:relative;}
+
+  .letterhead{padding:22px 32px 16px; border-bottom:3px solid var(--ink); display:flex; align-items:flex-start; justify-content:space-between; gap:16px;}
+  .lh-left{display:flex; gap:14px; align-items:center;}
+  .lh-mark{
+    width:58px;height:58px;border-radius:50%;
+    background:linear-gradient(135deg,#f2f3f4,#aab5bd 40%,#f2f3f4 55%,#8f9aa2);
+    border:1px solid #8f9aa2; flex:0 0 auto; display:flex;align-items:center;justify-content:center;
+    font-family:'Barlow Semi Condensed',sans-serif;font-weight:700;color:var(--steel-dark); font-size:20px;
+  }
+  .lh-name h2{margin:0; font-family:'Barlow Semi Condensed',sans-serif; font-size:22px; font-weight:700; letter-spacing:0.2px;}
+  .lh-name .ar{font-size:13px; color:#555; margin-top:2px; direction:rtl;}
+  .lh-name .addr{font-size:10.5px; color:#666; margin-top:6px; line-height:1.5;}
+  .lh-badges{display:flex; gap:6px; flex-wrap:wrap; max-width:230px; justify-content:flex-end;}
+  .badge{font-size:9px; font-weight:700; letter-spacing:0.3px; text-transform:uppercase; border:1px solid var(--alu-3); border-radius:3px; padding:5px 7px; color:#3a3f44; background:var(--alu-1); text-align:center; line-height:1.35;}
+  .badge small{display:block; font-weight:500; font-size:8px; color:#777; text-transform:none;}
+
+  .doc-title{background:linear-gradient(90deg,var(--steel-dark),var(--steel)); color:#fff; padding:12px 32px; display:flex; justify-content:space-between; align-items:center;}
+  .doc-title h3{margin:0; font-family:'Barlow Semi Condensed',sans-serif; font-weight:700; font-size:16px; text-transform:uppercase; letter-spacing:0.5px;}
+  .doc-title .ref{font-family:'IBM Plex Mono',monospace; font-size:11px; opacity:0.9; text-align:right;}
+
+  .meta-strip{display:grid; grid-template-columns:repeat(4,1fr); gap:0; border-bottom:1px solid var(--line);}
+  .meta-strip div{padding:10px 14px; border-right:1px solid var(--line);}
+  .meta-strip div:last-child{border-right:none;}
+  .meta-strip .k{font-size:9.5px; text-transform:uppercase; letter-spacing:0.4px; color:#888; font-weight:700;}
+  .meta-strip .v{font-family:'IBM Plex Mono',monospace; font-size:13px; margin-top:2px; font-weight:600;}
+
+  table.spec{width:100%; border-collapse:collapse;}
+  table.spec thead th{background:var(--alu-1); text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:0.4px; padding:8px 14px; color:var(--steel-dark); border-bottom:2px solid var(--ink);}
+  table.spec td{padding:8px 14px; border-bottom:1px solid var(--line); font-size:12.5px; vertical-align:top;}
+  table.spec td.snum{width:34px; color:#999; font-family:'IBM Plex Mono',monospace;}
+  table.spec td.label{font-weight:600; width:190px;}
+  table.spec td.imp, table.spec td.met{font-family:'IBM Plex Mono',monospace; font-size:12px;}
+  table.spec tr.locked td.imp, table.spec tr.locked td.met{color:var(--steel-dark); font-weight:600;}
+  table.spec tr.locked td.label::after{content:"⚿"; color:var(--brass); margin-left:6px; font-size:10px;}
+  table.spec tbody tr:nth-child(even){background:#fbfbf9;}
+  table.spec tr.remark td{font-size:11px; color:var(--brass); background:#fdf8ef;}
+
+  .stamp-row{display:flex; justify-content:space-between; align-items:flex-end; padding:26px 32px 30px; gap:20px;}
+  .sign-block{flex:1;}
+  .sign-block .line{border-top:1px solid #999; margin-top:34px; padding-top:4px;}
+  .sign-block .cap{font-size:9.5px; text-transform:uppercase; letter-spacing:0.4px; color:#888; font-weight:700;}
+  .seal{
+    width:104px;height:104px;border-radius:50%; border:2px dashed var(--brass);
+    display:flex; align-items:center; justify-content:center; text-align:center; transform:rotate(-8deg);
+    color:var(--brass); font-family:'Barlow Semi Condensed',sans-serif; font-weight:700; font-size:10.5px; line-height:1.25; letter-spacing:0.4px; padding:6px; flex:0 0 auto;
+  }
+  .footer-strip{background:var(--ink); color:#cfd6da; font-size:10px; padding:9px 32px; display:flex; justify-content:space-between;}
+  .foot-note{padding:10px 32px 18px; font-size:9.5px; color:#8a8a82; line-height:1.5;}
+
+  /* library modal */
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(20,29,36,0.55); z-index:1000;
+    display:flex; align-items:center; justify-content:center; padding:30px;
+  }
+  .modal-overlay.hidden{display:none;}
+  .modal-box{
+    background:#fff; width:min(1200px,95vw); max-height:88vh; border-radius:4px;
+    box-shadow:0 20px 60px rgba(0,0,0,0.35); display:flex; flex-direction:column; overflow:hidden;
+  }
+  .modal-header{
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+    padding:16px 22px; border-bottom:2px solid var(--ink); background:var(--alu-1);
+  }
+  .modal-header h3{margin:0 0 4px; font-family:'Barlow Semi Condensed',sans-serif; font-size:17px; text-transform:uppercase; letter-spacing:0.4px; color:var(--steel-dark);}
+  .modal-box #libSearch{margin:16px 22px 0; width:calc(100% - 44px);}
+  .modal-box p.note{margin:10px 22px 0;}
+  .modal-body{padding:6px 22px 22px; overflow-y:auto; flex:1;}
+  .modal-body table.libtable{font-size:12.5px;}
+  .modal-body table.libtable th, .modal-body table.libtable td{padding:7px 9px;}
+  .modal-body tr.row-hidden{display:none;}
+
+  @media print{
+    body{background:#fff;}
+    .config, .preview-wrap{padding:0; background:#fff;}
+    .app{display:block;}
+    .config{display:none;}
+    .sheet{box-shadow:none; max-width:100%;}
+    .modal-overlay{display:none !important;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ CONFIGURATOR ============ -->
+  <div class="config">
+    <div class="brand-mini">
+      <div class="mark">ATG</div>
+      <div class="txt"><h1>TDS Generator</h1><p>Alumill Tech Gulf LLC</p></div>
+    </div>
+
+    <div class="eyebrow"><span class="num">01</span> Order reference</div>
+    <label for="custName">Customer name</label>
+    <input type="text" id="custName" placeholder="M/s Kinetics Group" value="M/s Kinetics Group">
+    <div class="row2">
+      <div><label for="tdsDate">Date</label><input type="text" id="tdsDate" placeholder="DD.MM.YYYY"></div>
+      <div><label for="tdsRef">Ref no.</label><input type="text" id="tdsRef" placeholder="auto"></div>
+    </div>
+
+    <div class="tabs">
+      <button type="button" class="tab active" id="tabTds">TDS Generator</button>
+      <button type="button" class="tab" id="tabCompare">Comparator</button>
+      <button type="button" class="tab admin-tab" id="tabAdmin">Admin</button>
+    </div>
+
+    <!-- ===== TDS MODE ===== -->
+    <div id="tdsControls">
+      <div class="eyebrow"><span class="num">02</span> Product selection</div>
+      <label for="productSel">Product <span class="required-mark">*</span></label>
+      <select id="productSel" required></select>
+      <div class="field-warn" id="productWarn">Product is required before printing.</div>
+      <input type="text" id="productOther" class="hidden" placeholder="Specify product type" style="margin-top:8px;">
+
+      <label for="alloySel">Alloy</label>
+      <select id="alloySel"></select>
+
+      <label for="temperSel">Temper</label>
+      <select id="temperSel"></select>
+
+      <label for="thickInput">Thickness (mm) <span class="required-mark">*</span></label>
+      <input type="number" id="thickInput" step="0.01" min="0.1" value="1.20" list="thickPresets">
+      <datalist id="thickPresets">
+        <option value="0.90"><option value="1.20"><option value="1.50"><option value="2.00">
+      </datalist>
+      <div class="hint">Free entry — mechanical properties and tolerance are looked up from the matching thickness band automatically.</div>
+
+      <label for="widthInput">Width (mm) <span class="required-mark">*</span></label>
+      <input type="number" id="widthInput" step="1" min="1" value="1220" list="widthPresets">
+      <datalist id="widthPresets"><option value="1220"></datalist>
+      <div class="hint">Free entry — width tolerance and the thickness-tolerance width band are looked up automatically. ANSI H35.2 brackets width in metric steps (thru 1000mm, over 1000 thru 1500mm, over 1500 thru 2000mm, etc.) — only the "over 1000 thru 1500 mm" bracket (covers this coil's 1220mm width) is confirmed on file.</div>
+
+      <label for="unitsSel">Units shown on TDS</label>
+      <select id="unitsSel">
+        <option value="both" selected>Metric &amp; Imperial (both)</option>
+        <option value="metric">Metric only</option>
+        <option value="imperial">Imperial only</option>
+      </select>
+    </div>
+
+    <!-- ===== COMPARE MODE ===== -->
+    <div id="compareControls" class="hidden">
+      <div class="eyebrow"><span class="num">02</span> Alloys / tempers to compare</div>
+      <label for="cmpThickInput">Thickness for comparison (mm)</label>
+      <input type="number" id="cmpThickInput" step="0.01" min="0.1" value="1.20">
+
+      <label for="cmpAlloySel">Alloy</label>
+      <select id="cmpAlloySel"></select>
+      <label for="cmpTemperSel">Temper</label>
+      <select id="cmpTemperSel"></select>
+      <button type="button" style="margin-top:10px;width:100%;" id="btnCmpAdd">+ Add to comparison</button>
+
+      <div class="alloy-check-list" id="cmpPairList" style="margin-top:14px;"></div>
+      <div class="check-actions">
+        <button type="button" class="secondary" id="cmpClearAll">Clear all</button>
+      </div>
+    </div>
+
+    <!-- ===== ADMIN MODE ===== -->
+    <div id="adminControls" class="hidden">
+      <div class="eyebrow"><span class="num">02</span> Master data administration</div>
+      <div class="admin-gate" id="adminGate">
+        <p style="font-size:12px;margin:0 0 8px;">Admin edits change shared master data used by everyone opening this tool. Enter the admin passphrase to unlock editing.</p>
+        <input type="password" id="adminPass" placeholder="Admin passphrase">
+        <button type="button" style="margin-top:8px;" id="btnUnlock">Unlock admin editing</button>
+        <p class="hint">This is a soft gate only — it prevents accidental edits, not a security control. Anyone with this file's source can bypass it.</p>
+      </div>
+      <div id="adminUnlocked" class="hidden">
+        <div class="status-line" id="storageStatus">Checking storage…</div>
+        <p class="hint">Editing controls are open in the main panel, where there's room to work — Products, Rules, and Alloys/Bands sections.</p>
+        <button type="button" class="secondary" id="btnSaveMaster" style="margin-top:12px;width:100%;">Save master data</button>
+        <button type="button" class="ghost" id="btnResetMaster" style="margin-top:8px;width:100%;">Reset to factory defaults</button>
+        <button type="button" class="secondary" id="btnLockAdmin" style="margin-top:8px;width:100%;">Exit admin mode</button>
+      </div>
+    </div>
+
+    <div class="btnbar">
+      <button id="btnPrint">Print / Save PDF</button>
+      <button class="secondary" id="btnReset" type="button">Reset</button>
+    </div>
+
+    <button type="button" id="btnOpenLibrary" style="margin-top:22px;width:100%;background:var(--steel);border-color:var(--steel);">
+      ⚿ View Mechanical &amp; Chemistry Library
+    </button>
+
+    <div class="disclaimer">
+      <strong>ANSI H35.2 note:</strong> Table 7.7a brackets coils by width in metric steps — up thru 1000mm, over 1000 thru 1500mm, over 1500 thru 2000mm, and so on. Only the "over 1000 thru 1500 mm" bracket (which covers this coil's 1220mm width) has confirmed thickness-tolerance figures on file; other brackets show "not verified" rather than a guessed number. Table 7.11 width tolerance is similarly only confirmed for the "over 600 thru 1500 mm" bracket, pending confirmation against your licensed ANSI H35.2 edition.<br><br>
+      <strong>Data confidence:</strong> figures marked <span class="unverified">in amber italics</span> in the library are placeholders pending QC confirmation against your licensed ASTM/EN copies — refine them from the Admin tab.<br><br>
+      <strong>Comparator:</strong> shows mechanical and chemical properties only — no thickness, width, coil, or packing tolerances.
+    </div>
+  </div>
+
+  <!-- ============ PREVIEW / OUTPUT ============ -->
+  <div class="preview-wrap">
+    <div class="admin-main-panel hidden" id="adminMainPanel">
+      <div class="admin-main-header">
+        <h2>⚿ Master Data Administration</h2>
+        <p>Changes here update the shared master data used across the TDS Generator and Comparator tabs.</p>
+      </div>
+
+      <details class="admin-panel" open>
+        <summary>Products</summary>
+        <div class="admin-section">
+          <p class="hint">These appear as options in the Product dropdown on the TDS Generator tab.</p>
+          <div class="field-grid-header product-row"><span>Product name</span><span></span></div>
+          <div id="productList"></div>
+          <div class="product-row"><input type="text" id="newProductName" placeholder="New product name"><button type="button" class="ghost" id="btnAddProduct">Add</button></div>
+        </div>
+      </details>
+
+      <details class="admin-panel" open>
+        <summary>Conditions &amp; remarks rules</summary>
+        <div class="admin-section">
+          <p class="hint">Rules are checked against the current TDS selection; every rule whose Product/Alloy/Temper/Thickness/Width all match gets applied. Rules sharing the same Label combine their Remarks into one row (in rule order) — e.g. a thickness-based Flatness note and a width-based Flatness note can both show together. "Any" matches everything for that field.</p>
+          <div id="ruleList"></div>
+          <button type="button" class="ghost" id="btnAddRule" style="margin-top:6px;">+ Add rule</button>
+        </div>
+      </details>
+
+      <details class="admin-panel" open>
+        <summary>Alloys &amp; Tempers</summary>
+        <div class="admin-section">
+          <p class="hint">Chemistry and the list of tempers per alloy. Click an alloy's header to collapse or expand it. Thickness bands (tensile, yield, elongation, bend by mm range) live in the "Thickness Bands" section below.</p>
+          <div id="alloyTempersList"></div>
+          <button type="button" class="ghost" id="btnShowNewAlloy" style="margin-top:8px;">+ Add new alloy</button>
+          <div class="newalloy-form" id="newAlloyForm">
+            <div class="row3">
+              <div><label>Key (e.g. AA5052)</label><input type="text" id="naKey"></div>
+              <div><label>Label</label><input type="text" id="naLabel"></div>
+              <div><label>Standard</label><input type="text" id="naStandard" value="ASTM B209/B209M-21a"></div>
+            </div>
+            <label style="margin-top:8px;">Chemistry (wt % max unless range)</label>
+            <div class="row3">
+              <div><label class="mini-label">Si</label><input type="text" id="naSi"></div>
+              <div><label class="mini-label">Fe</label><input type="text" id="naFe"></div>
+              <div><label class="mini-label">Cu</label><input type="text" id="naCu"></div>
+            </div>
+            <div class="row3" style="margin-top:6px;">
+              <div><label class="mini-label">Mn</label><input type="text" id="naMn"></div>
+              <div><label class="mini-label">Mg</label><input type="text" id="naMg"></div>
+              <div><label class="mini-label">Cr</label><input type="text" id="naCr"></div>
+            </div>
+            <div class="row3" style="margin-top:6px;">
+              <div><label class="mini-label">Zn</label><input type="text" id="naZn"></div>
+              <div><label class="mini-label">Ti</label><input type="text" id="naTi"></div>
+              <div><label class="mini-label">Each</label><input type="text" id="naEach"></div>
+            </div>
+            <div class="row2" style="margin-top:6px;">
+              <div><label class="mini-label">Total</label><input type="text" id="naTotal"></div>
+              <div><label class="mini-label">Al</label><input type="text" id="naAl"></div>
+            </div>
+            <label style="margin-top:8px;">First temper name (e.g. H14)</label>
+            <input type="text" id="naTemper" placeholder="H14">
+            <div class="hint">A starting band (0–999 mm, blank properties) is created automatically — fill it in from the Thickness Bands section after creating the alloy.</div>
+            <button type="button" style="margin-top:8px;" id="btnCreateAlloy">Create alloy</button>
+            <button type="button" class="secondary" style="margin-top:8px;" id="btnCancelAlloy">Cancel</button>
+          </div>
+        </div>
+      </details>
+
+      <details class="admin-panel" open>
+        <summary>Thickness Bands</summary>
+        <div class="admin-section">
+          <p class="hint">Tensile, yield, elongation, and bend by thickness range — the same set of ranges applies to every alloy, since ANSI/ASTM gauge steps are standardized across non-aerospace alloys. Edit the shared ranges once here; each alloy below just fills in its own values against them.</p>
+          <p class="note" style="font-weight:600;margin-top:10px;">Shared thickness ranges (mm)</p>
+          <table class="band-table" id="sharedRangesTable">
+            <thead><tr><th>Min (mm)</th><th>Max (mm)</th><th></th></tr></thead>
+            <tbody id="sharedRangesBody"></tbody>
+          </table>
+          <button type="button" class="ghost" id="btnAddRange" style="margin-top:4px;">+ Add range</button>
+
+          <p class="note" style="font-weight:600;margin-top:16px;">Per-alloy values against the shared ranges</p>
+          <div id="thicknessBandsList"></div>
+        </div>
+      </details>
+    </div>
+
+
+    <div class="sheet" id="sheet">
+      <div class="letterhead">
+        <div class="lh-left">
+          <div class="lh-mark">ATG</div>
+          <div class="lh-name">
+            <h2>Alumill Tech Gulf LLC</h2>
+            <div class="ar">الوميل تيك جلف ذ.م.م</div>
+            <div class="addr">PO Box 86025, Ras Al Khaimah, UAE &nbsp;·&nbsp; Tel +971 7 2589099 &nbsp;·&nbsp; Fax +971 7 2589190 &nbsp;·&nbsp; info@alumill.ae</div>
+          </div>
+        </div>
+        <div class="lh-badges">
+          <span class="badge">ISO 9001<small>:2015 Certified</small></span>
+          <span class="badge">TÜV Rheinland<small>Certified</small></span>
+          <span class="badge">Emirates<small>Quality Mark</small></span>
+        </div>
+      </div>
+
+      <div class="doc-title">
+        <h3 id="docTitleAlloy">Technical Data Sheet — Aluminium Coil</h3>
+        <div class="ref">Ref: <span id="refOut">—</span><br>Issued: <span id="dateOut">—</span></div>
+      </div>
+
+      <div id="tdsBody">
+        <div class="meta-strip">
+          <div><div class="k">Customer</div><div class="v" id="custOut">—</div></div>
+          <div><div class="k">Alloy / Temper</div><div class="v" id="alloyOut">—</div></div>
+          <div><div class="k">Thickness</div><div class="v" id="thickOut">—</div></div>
+          <div><div class="k">Width</div><div class="v" id="widthOut">—</div></div>
+        </div>
+        <table class="spec">
+          <thead id="specHead"><tr><th style="width:34px;">#</th><th>Specification</th><th>Imperial dimension</th><th>Metric dimension</th></tr></thead>
+          <tbody id="specBody"></tbody>
+        </table>
+      </div>
+
+      <div id="compareBody" class="hidden">
+        <div class="meta-strip" style="grid-template-columns:1fr 1fr 1fr;">
+          <div><div class="k">Prepared for</div><div class="v" id="cmpCustOut">—</div></div>
+          <div><div class="k">Compared at thickness</div><div class="v" id="cmpThickOut">—</div></div>
+          <div><div class="k">Alloys / tempers compared</div><div class="v" id="cmpCountOut">—</div></div>
+        </div>
+        <table class="cmp">
+          <caption>Mechanical Properties</caption>
+          <thead><tr><th>Alloy</th><th>Temper</th><th>Standard</th><th>Tensile (MPa)</th><th>Yield min (MPa)</th><th>Elong. min %</th><th>Bend</th></tr></thead>
+          <tbody id="cmpMechBody"></tbody>
+        </table>
+        <table class="cmp">
+          <caption>Chemical Composition (wt % max, unless a range or stated otherwise)</caption>
+          <thead><tr><th>Alloy</th><th>Si</th><th>Fe</th><th>Cu</th><th>Mn</th><th>Mg</th><th>Cr</th><th>Zn</th><th>Ti</th><th>Each</th><th>Total</th><th>Al</th></tr></thead>
+          <tbody id="cmpChemBody"></tbody>
+        </table>
+      </div>
+
+      <div class="stamp-row">
+        <div class="sign-block"><div class="line"></div><div class="cap">QC Dept.</div></div>
+        <div class="sign-block"><div class="line"></div><div class="cap">Production Dept.</div></div>
+        <div class="seal" id="sealOut">CERTIFIED<br>SPEC</div>
+        <div class="sign-block"><div class="line"></div><div class="cap">Approved By</div></div>
+      </div>
+
+      <div class="foot-note" id="footNote"></div>
+      <div class="footer-strip"><span>Alumill Tech Gulf LLC — Quality Assurance</span><span id="footRef">—</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ LIBRARY MODAL (main-window, searchable) ============ -->
+<div class="modal-overlay hidden" id="libraryModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div>
+        <h3>⚿ Mechanical &amp; Chemistry Library</h3>
+        <span class="tag" id="libTag">QC master · read only</span>
+      </div>
+      <button type="button" class="secondary" id="closeLibraryModal">✕ Close</button>
+    </div>
+    <input type="text" id="libSearch" placeholder="Search by alloy or temper (e.g. 3003, H14, H2x)…">
+    <p class="note">Values below are the certified QC master data. In normal use they populate the TDS automatically and cannot be edited here — switch to the Admin tab to modify them.</p>
+    <div class="modal-body">
+      <p class="note" style="font-weight:600;">Mechanical properties (by thickness band)</p>
+      <table class="libtable" id="libTable">
+        <thead><tr><th>Alloy</th><th>Temper</th><th>Std</th><th>Thk band (mm)</th><th>Tensile (MPa)</th><th>Yield min (MPa)</th><th>Elong. min %</th><th>Bend</th></tr></thead>
+        <tbody id="libBody"></tbody>
+      </table>
+      <p class="note" style="margin-top:16px;font-weight:600;">Chemical composition limits (wt % max, unless a range or stated otherwise)</p>
+      <table class="libtable" id="chemTable">
+        <thead><tr><th>Alloy</th><th>Si</th><th>Fe</th><th>Cu</th><th>Mn</th><th>Mg</th><th>Cr</th><th>Zn</th><th>Ti</th><th>Each</th><th>Total</th><th>Al</th></tr></thead>
+        <tbody id="chemBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =====================================================================
+   MASTER DATA
+   ===================================================================== */
+const ADMIN_PASSPHRASE = "alumill-qc"; // soft gate only — not real security
+const STORAGE_KEY = "alumill-master-data-v1";
+
+// mm <-> in helper
+const mm2in = mm => mm/25.4;
+const in2mm = inch => inch*25.4;
+
+// HTML-escape any admin/user-editable string before it goes into innerHTML — master
+// data (products, alloy chemistry, rule remarks, temper names, etc.) is editable via
+// the Admin tab and, once this is hosted with shared storage, can come from anyone
+// with write access to that storage, not just people who passed the Admin passphrase.
+function esc(s){
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+const DEFAULT_PRODUCTS = [
+  "Mill Finish Aluminium Coil",
+  "Pre-Painted Aluminium Coil",
+  "PSMB Laminated Aluminium Coil",
+  "Aluminium Sheet",
+  "Stucco Embossed Aluminium Coil / Sheet",
+  "Color Coated Aluminium Coil"
+];
+
+// Shared thickness ranges (mm) — the same grid every alloy/temper is scored against,
+// since ANSI/ASTM gauge breakpoints are standardized across non-aerospace alloys.
+// Ranges are admin-editable (Admin > Thickness Bands); adding/removing one here applies globally.
+const DEFAULT_THICKNESS_RANGES = [
+  { id:'R1', min:0,   max:0.3 },
+  { id:'R2', min:0.3, max:0.5 },
+  { id:'R3', min:0.5, max:0.8 },
+  { id:'R4', min:0.8, max:1.3 },
+  { id:'R5', min:1.3, max:2.9 },
+  { id:'R6', min:2.9, max:4.1 }
+];
+// bv() = "blank/unverified" cell. v(...) = a filled-in cell; verified defaults true unless passed false.
+function bv(){ return {tensileMin:null,tensileMax:null,yieldMin:null,elong:null,bend:null,verified:false}; }
+function v(tensileMin,tensileMax,yieldMin,elong,bend,verified){
+  return { tensileMin, tensileMax, yieldMin, elong, bend, verified: verified!==false };
+}
+
+// Mechanical properties: ASTM B209/B209M-21a Table 2/3, except AA1050 which is not
+// listed in ASTM B209 and is instead certified to BS EN 573-3 (chemistry) / EN 485-2 (mechanical).
+// Values are keyed by the shared thickness range IDs above (R1..R6). Where a temper's original
+// source data only covered part of a shared range, that range is left blank (bv()) rather than
+// extending a value beyond what was actually confirmed.
+// Tempers ending H2x are the ASTM B209 Note C "optional supplier" designations — each one meets the
+// tensile/yield limits of the H1x or H3x temper named in its equivNote. Where that equivalence is only
+// inferred (not independently confirmed in a specific band), it's flagged unverified.
+const DEFAULT_ALLOYS = {
+  "AA1050": {
+    label:"AA 1050", standard:"BS EN 573-3 (chemistry) / EN 485-2 (mechanical)",
+    chemistry:{Si:"0.25",Fe:"0.40",Cu:"0.05",Mn:"0.05",Mg:"0.05",Cr:"–",Zn:"0.07",Ti:"0.05",each:"0.03",total:"–",Al:"99.50 min"},
+    tempers:{
+      "H12":{ values:{ R1:bv(), R2:bv(), R3:bv(), R4:bv(), R5:bv(), R6:bv() } },
+      "H14":{ values:{
+        R1:bv(),
+        R2:v(105,145,85,2,"1.0t/0t"),
+        R3:v(105,145,85,2,"1.0t/0.5t"),
+        R4:v(105,145,85,2,"1.0t/0.5t"),
+        R5:v(105,145,85,4,"1.0t/1.0t"),
+        R6:bv()
+      }},
+      "H16":{ values:{ R1:bv(), R2:bv(), R3:bv(), R4:bv(), R5:bv(), R6:bv() } },
+      "H18":{ values:{ R1:bv(), R2:bv(), R3:bv(), R4:bv(), R5:bv(), R6:bv() } },
+      "H22":{ equivNote:"Distinct EN 485-2 temper, not verified in this library yet", values:{ R1:bv(), R2:bv(), R3:bv(), R4:bv(), R5:bv(), R6:bv() } },
+      "H24":{ equivNote:"Distinct EN 485-2 temper (lower guaranteed yield than H14) — sourced", values:{
+        R1:bv(),
+        R2:v(105,145,75,3,"1.0t/0t"),
+        R3:v(105,145,75,4,"1.0t/0.5t"),
+        R4:v(105,145,75,4,"1.0t/0.5t"),
+        R5:v(105,145,75,5,"1.0t/1.0t"),
+        R6:bv()
+      }},
+      "H26":{ equivNote:"Distinct EN 485-2 temper, not verified in this library yet", values:{ R1:bv(), R2:bv(), R3:bv(), R4:bv(), R5:bv(), R6:bv() } },
+      "H28":{ equivNote:"Distinct EN 485-2 temper, not verified in this library yet", values:{ R1:bv(), R2:bv(), R3:bv(), R4:bv(), R5:bv(), R6:bv() } }
+    }
+  },
+  "AA1100": {
+    label:"AA 1100", standard:"ASTM B209/B209M-21a",
+    chemistry:{Si:"0.95 (Si+Fe)",Fe:"0.95 (Si+Fe)",Cu:"0.05–0.20",Mn:"0.05",Mg:"–",Cr:"–",Zn:"0.10",Ti:"–",each:"0.05",total:"0.15",Al:"99.00 min"},
+    tempers:{
+      "H12":{ values:{ R1:bv(), R2:v(97,131,76,6,null), R3:v(97,131,76,6,null), R4:v(97,131,76,6,null), R5:v(97,131,76,6,null), R6:v(97,131,76,6,null) } },
+      "H14":{ values:{
+        R1:v(110,145,97,1,"0T"), R2:v(110,145,97,2,"0T"), R3:v(110,145,97,3,"0T"),
+        R4:v(110,145,97,4,"0T"), R5:v(110,145,97,5,"0T"), R6:v(110,145,97,6,"0T")
+      }},
+      "H16":{ values:{ R1:bv(), R2:v(131,165,117,3,null), R3:v(131,165,117,3,null), R4:v(131,165,117,3,null), R5:v(131,165,117,3,null), R6:v(131,165,117,3,null) } },
+      "H18":{ values:{ R1:bv(), R2:bv(), R3:bv(), R4:bv(), R5:bv(), R6:bv() } },
+      "H22":{ equivNote:"Optional designation meeting H12 limits (ASTM Note C)", values:{ R1:bv(), R2:v(97,131,76,6,null), R3:v(97,131,76,6,null), R4:v(97,131,76,6,null), R5:v(97,131,76,6,null), R6:v(97,131,76,6,null) } },
+      "H24":{ equivNote:"Optional designation meeting H14 limits (ASTM Note C)", values:{
+        R1:v(110,145,97,1,"0T"), R2:v(110,145,97,2,"0T"), R3:v(110,145,97,3,"0T"),
+        R4:v(110,145,97,4,"0T"), R5:v(110,145,97,5,"0T"), R6:v(110,145,97,6,"0T")
+      }},
+      "H26":{ equivNote:"Assumed to meet H16 limits per ASTM Note C — not independently confirmed", values:{ R1:bv(), R2:v(131,165,117,3,null,false), R3:v(131,165,117,3,null,false), R4:v(131,165,117,3,null,false), R5:v(131,165,117,3,null,false), R6:v(131,165,117,3,null,false) } },
+      "H28":{ equivNote:"Assumed to meet H18 limits per ASTM Note C — not independently confirmed", values:{ R1:bv(), R2:bv(), R3:bv(), R4:bv(), R5:bv(), R6:bv() } }
+    }
+  },
+  "AA3003": {
+    label:"AA 3003", standard:"ASTM B209/B209M-21a",
+    chemistry:{Si:"0.6",Fe:"0.7",Cu:"0.05–0.20",Mn:"1.0–1.5",Mg:"–",Cr:"–",Zn:"0.10",Ti:"–",each:"0.05",total:"0.15",Al:"remainder"},
+    tempers:{
+      "H12":{ values:{ R1:bv(), R2:bv(), R3:bv(), R4:bv(), R5:bv(), R6:bv() } },
+      "H14":{ values:{
+        R1:v(138,179,117,1,"0T"), R2:v(138,179,117,2,"0T"), R3:v(138,179,117,3,"0T"),
+        R4:v(138,179,117,4,"0T"), R5:v(138,179,117,5,"0T"), R6:v(138,179,117,6,"2T")
+      }},
+      "H16":{ values:{ R1:bv(), R2:bv(), R3:bv(), R4:bv(), R5:bv(), R6:bv() } },
+      "H18":{ values:{ R1:bv(), R2:bv(), R3:bv(), R4:bv(), R5:bv(), R6:bv() } },
+      "H22":{ equivNote:"Assumed to meet H12 limits per ASTM Note C — H12 itself not yet verified", values:{ R1:bv(), R2:bv(), R3:bv(), R4:bv(), R5:bv(), R6:bv() } },
+      "H24":{ equivNote:"Optional designation meeting H14 limits (ASTM Note C)", values:{
+        R1:v(138,179,117,1,"0T"), R2:v(138,179,117,2,"0T"), R3:v(138,179,117,3,"0T"),
+        R4:v(138,179,117,4,"0T"), R5:v(138,179,117,5,"0T"), R6:v(138,179,117,6,"2T")
+      }},
+      "H26":{ equivNote:"Assumed to meet H16 limits per ASTM Note C — H16 itself not yet verified", values:{ R1:bv(), R2:bv(), R3:bv(), R4:bv(), R5:bv(), R6:bv() } },
+      "H28":{ equivNote:"Assumed to meet H18 limits per ASTM Note C — H18 itself not yet verified", values:{ R1:bv(), R2:bv(), R3:bv(), R4:bv(), R5:bv(), R6:bv() } }
+    }
+  },
+  "AA3004": {
+    label:"AA 3004", standard:"ASTM B209/B209M-21a",
+    chemistry:{Si:"0.30",Fe:"0.7",Cu:"0.25",Mn:"1.0–1.5",Mg:"0.8–1.3",Cr:"–",Zn:"0.25",Ti:"–",each:"0.05",total:"0.15",Al:"remainder"},
+    tempers:{
+      "H32":{ equivNote:"3004 sheet/plate has no H1x series under ASTM B209 — only O, H32, H34, H36, H38", values:{ R1:v(193,241,145,null,null), R2:v(193,241,145,null,null), R3:v(193,241,145,null,null), R4:v(193,241,145,null,null), R5:v(193,241,145,null,null), R6:v(193,241,145,null,null) } },
+      "H34":{ equivNote:"3004 sheet/plate has no H1x series under ASTM B209 — only O, H32, H34, H36, H38", values:{ R1:v(221,262,172,null,null), R2:v(221,262,172,null,null), R3:v(221,262,172,null,null), R4:v(221,262,172,null,null), R5:v(221,262,172,null,null), R6:v(221,262,172,null,null) } },
+      "H36":{ equivNote:"3004 sheet/plate has no H1x series under ASTM B209 — only O, H32, H34, H36, H38", values:{ R1:v(241,283,193,null,null), R2:v(241,283,193,null,null), R3:v(241,283,193,null,null), R4:v(241,283,193,null,null), R5:v(241,283,193,null,null), R6:v(241,283,193,null,null) } },
+      "H38":{ equivNote:"3004 sheet/plate has no H1x series under ASTM B209 — only O, H32, H34, H36, H38", values:{ R1:bv(), R2:bv(), R3:bv(), R4:bv(), R5:bv(), R6:bv() } },
+      "H22":{ equivNote:"Optional designation meeting H32 limits — NOT H12 (3004 has no H1x series)", values:{ R1:v(193,241,145,null,null), R2:v(193,241,145,null,null), R3:v(193,241,145,null,null), R4:v(193,241,145,null,null), R5:v(193,241,145,null,null), R6:v(193,241,145,null,null) } },
+      "H24":{ equivNote:"Optional designation meeting H34 limits — NOT H14 (3004 has no H1x series)", values:{ R1:v(221,262,172,null,null), R2:v(221,262,172,null,null), R3:v(221,262,172,null,null), R4:v(221,262,172,null,null), R5:v(221,262,172,null,null), R6:v(221,262,172,null,null) } },
+      "H26":{ equivNote:"Optional designation meeting H36 limits — NOT H16 (3004 has no H1x series)", values:{ R1:v(241,283,193,null,null), R2:v(241,283,193,null,null), R3:v(241,283,193,null,null), R4:v(241,283,193,null,null), R5:v(241,283,193,null,null), R6:v(241,283,193,null,null) } },
+      "H28":{ equivNote:"Optional designation meeting H38 limits — NOT H18 (3004 has no H1x series)", values:{ R1:bv(), R2:bv(), R3:bv(), R4:bv(), R5:bv(), R6:bv() } }
+    }
+  },
+  "AA3105": {
+    label:"AA 3105", standard:"ASTM B209/B209M-21a",
+    chemistry:{Si:"0.6",Fe:"0.7",Cu:"0.30",Mn:"0.30–0.8",Mg:"0.20–0.8",Cr:"0.20",Zn:"0.40",Ti:"0.10",each:"0.05",total:"0.15",Al:"remainder"},
+    tempers:{
+      "H12":{ values:{ R1:bv(), R2:v(131,179,103,null,null), R3:v(131,179,103,null,null), R4:v(131,179,103,null,null), R5:v(131,179,103,null,null), R6:bv() } },
+      "H14":{ values:{ R1:bv(), R2:v(152,200,124,null,null,false), R3:v(152,200,124,null,null,false), R4:v(152,200,124,null,null,false), R5:v(152,200,124,null,null,false), R6:bv() } },
+      "H16":{ values:{ R1:bv(), R2:v(172,221,145,null,null), R3:v(172,221,145,null,null), R4:v(172,221,145,null,null), R5:v(172,221,145,null,null), R6:bv() } },
+      "H18":{ values:{ R1:bv(), R2:v(193,null,165,null,null), R3:v(193,null,165,null,null), R4:v(193,null,165,null,null), R5:v(193,null,165,null,null), R6:bv() } },
+      "H22":{ equivNote:"Confirmed equal to H12 minimums in source table (ASTM Note C)", values:{ R1:bv(), R2:v(131,179,103,null,null), R3:v(131,179,103,null,null), R4:v(131,179,103,null,null), R5:v(131,179,103,null,null), R6:bv() } },
+      "H24":{ equivNote:"Confirmed equal to H14 minimums in source table (ASTM Note C)", values:{ R1:bv(), R2:v(152,200,124,null,null,false), R3:v(152,200,124,null,null,false), R4:v(152,200,124,null,null,false), R5:v(152,200,124,null,null,false), R6:bv() } },
+      "H26":{ equivNote:"Assumed to meet H16 limits per ASTM Note C — not independently confirmed", values:{ R1:bv(), R2:v(172,221,145,null,null,false), R3:v(172,221,145,null,null,false), R4:v(172,221,145,null,null,false), R5:v(172,221,145,null,null,false), R6:bv() } },
+      "H28":{ equivNote:"Assumed to meet H18 limits per ASTM Note C — not independently confirmed", values:{ R1:bv(), R2:v(193,null,165,null,null,false), R3:v(193,null,165,null,null,false), R4:v(193,null,165,null,null,false), R5:v(193,null,165,null,null,false), R6:bv() } }
+    }
+  },
+  "AA5005": {
+    label:"AA 5005", standard:"ASTM B209/B209M-21a",
+    chemistry:{Si:"0.30",Fe:"0.7",Cu:"0.20",Mn:"0.20",Mg:"0.50–1.1",Cr:"0.10",Zn:"0.25",Ti:"–",each:"0.05",total:"0.15",Al:"remainder"},
+    tempers:{
+      "H12":{ values:{ R1:bv(), R2:v(124,166,97,4,null), R3:v(124,166,97,4,null), R4:v(124,166,97,4,null), R5:v(124,166,97,4,null), R6:v(124,166,97,4,null) } },
+      "H14":{ values:{ R1:bv(), R2:v(145,186,117,1,null), R3:v(145,186,117,1,null), R4:v(145,186,117,2,null), R5:v(145,186,117,3,null), R6:bv() } },
+      "H16":{ values:{ R1:v(165,207,138,2,null), R2:v(165,207,138,2,null), R3:v(165,207,138,2,null), R4:v(165,207,138,2,null), R5:v(165,207,138,2,null), R6:v(165,207,138,2,null) } },
+      "H18":{ values:{ R1:bv(), R2:v(186,null,null,null,null,false), R3:v(186,null,null,null,null,false), R4:v(186,null,null,null,null,false), R5:v(186,null,null,null,null,false), R6:bv() } },
+      "H32":{ values:{ R1:bv(), R2:v(117,159,83,5,null), R3:v(117,159,83,5,null), R4:v(117,159,83,5,null), R5:v(117,159,83,5,null), R6:v(117,159,83,5,null) } },
+      "H34":{ values:{ R1:v(138,179,103,4,null), R2:v(138,179,103,4,null), R3:v(138,179,103,4,null), R4:v(138,179,103,4,null), R5:v(138,179,103,4,null), R6:v(138,179,103,4,null) } },
+      "H36":{ values:{ R1:bv(), R2:bv(), R3:bv(), R4:bv(), R5:bv(), R6:bv() } },
+      "H38":{ values:{ R1:bv(), R2:bv(), R3:bv(), R4:bv(), R5:bv(), R6:bv() } },
+      "H22":{ equivNote:"For this alloy H22 pairs with H32, not H12 (per source ASTM table)", values:{ R1:bv(), R2:v(117,159,83,5,null), R3:v(117,159,83,5,null), R4:v(117,159,83,5,null), R5:v(117,159,83,5,null), R6:v(117,159,83,5,null) } },
+      "H24":{ equivNote:"For this alloy H24 pairs with H34, not H14 (per source ASTM table)", values:{ R1:v(138,179,103,4,null), R2:v(138,179,103,4,null), R3:v(138,179,103,4,null), R4:v(138,179,103,4,null), R5:v(138,179,103,4,null), R6:v(138,179,103,4,null) } },
+      "H26":{ equivNote:"For this alloy H26 pairs with H36, not H16 — H36 itself not yet verified", values:{ R1:bv(), R2:bv(), R3:bv(), R4:bv(), R5:bv(), R6:bv() } },
+      "H28":{ equivNote:"For this alloy H28 pairs with H38, not H18 — H38 itself not yet verified", values:{ R1:bv(), R2:bv(), R3:bv(), R4:bv(), R5:bv(), R6:bv() } }
+    }
+  }
+};
+
+// Conditions / remarks rules engine. Each rule sets one labeled spec line on the TDS
+// (Label = the row name, e.g. "Flatness"; Remark = the full text shown for that row).
+// Every rule whose Product/Alloy/Temper/Thickness/Width all match the current TDS selection applies.
+// Rules that share the same Label have their Remarks combined into a single row (joined in rule order).
+const DEFAULT_RULES = [
+  { id:"r1", product:"Any", alloy:"Any", temper:"Any", thickMin:0,        thickMax:2,     widthMin:0, widthMax:9999, label:"Flatness", remark:"Tension levelled, flatness ≤ 10 I-units. Tension leveling lines may be visible at certain angle." },
+  { id:"r2", product:"Any", alloy:"Any", temper:"Any", thickMin:2.000001, thickMax:9999,  widthMin:0, widthMax:9999, label:"Flatness", remark:"Non tension levelled, flatness ≤ 25 I-units." },
+  { id:"r3", product:"Any", alloy:"Any", temper:"Any", thickMin:0,        thickMax:9999,  widthMin:150, widthMax:600, label:"Surface Remark", remark:"Slit coil in this width range may show edge ripples." }
+];
+
+// ANSI H35.2 Table 7.7a brackets coils by width in round metric steps of 500mm:
+// up thru 1000mm, over 1000 thru 1500mm, over 1500 thru 2000mm, and so on.
+// We only have Table 7.7a's actual thickness-tolerance figures sourced for the
+// "over 1000 thru 1500mm" bracket (which covers Alumill's 1220mm coil) — the
+// others are listed here by name only, so the lookup can say exactly which
+// bracket a width falls into rather than guessing at its tolerance.
+const ANSI_WIDTH_BRACKETS_7_7A = [
+  { minMm:0,    maxMm:1000, label:"up thru 1000 mm",         verified:false },
+  { minMm:1000, maxMm:1500, label:"over 1000 thru 1500 mm",  verified:true  },
+  { minMm:1500, maxMm:2000, label:"over 1500 thru 2000 mm",  verified:false },
+  { minMm:2000, maxMm:2500, label:"over 2000 thru 2500 mm",  verified:false },
+  { minMm:2500, maxMm:3000, label:"over 2500 thru 3000 mm",  verified:false },
+  { minMm:3000, maxMm:3500, label:"over 3000 thru 3500 mm",  verified:false },
+  { minMm:3500, maxMm:4000, label:"over 3500 thru 4000 mm",  verified:false },
+  { minMm:4000, maxMm:4500, label:"over 4000 thru 4500 mm",  verified:false }
+];
+const ANSI_THICK_TOL = [
+  {min:0.0059,max:0.010, tol:0.0015},{min:0.010,max:0.016, tol:0.0015},{min:0.016,max:0.025, tol:0.0020},
+  {min:0.025,max:0.032,  tol:0.0025},{min:0.032,max:0.039, tol:0.0030},{min:0.039,max:0.047, tol:0.0035},
+  {min:0.047,max:0.063,  tol:0.0035},{min:0.063,max:0.079, tol:0.0040},{min:0.079,max:0.098, tol:0.0045},
+  {min:0.098,max:0.126,  tol:0.0060},{min:0.126,max:0.158, tol:0.0070},{min:0.158,max:0.197, tol:0.0090},
+  {min:0.197,max:0.248,  tol:0.0110},{min:0.248,max:0.315, tol:0.0140},{min:0.315,max:0.394, tol:0.0170}
+];
+
+// ANSI H35.2 Table 7.11 (slit coiled sheet width tolerance) uses its own, finer metric brackets.
+// Only the "over 600 thru 1500mm" bracket is confidently sourced (±1/16 in / ±1.6mm).
+const ANSI_WIDTH_BRACKETS_7_11 = [
+  { minMm:0,    maxMm:150,  label:"up thru 150 mm",        verified:false },
+  { minMm:150,  maxMm:300,  label:"over 150 thru 300 mm",  verified:false },
+  { minMm:300,  maxMm:600,  label:"over 300 thru 600 mm",  verified:false },
+  { minMm:600,  maxMm:1500, label:"over 600 thru 1500 mm", verified:true, tolIn:0.0625, tolMm:1.6 },
+  { minMm:1500, maxMm:2400, label:"over 1500 thru 2400 mm",verified:false }
+];
+
+const FIXED = {
+  productType:"Mill Finish Aluminium Coil",
+  spool:{imp:"0.39–0.472 in thick", met:"10–12 mm thick"},
+  coilId:{imp:"20 in", met:"508 mm"},
+  coilWeight:{imp:"Min 3300 lb, Max 6610 lb (15% of order qty between 1760–3300 lb)", met:"Min 1500 kg, Max 3000 kg (15% of order qty between 800–1500 kg)"},
+  winding:{imp:"Max 0.197 in/mtr diameter, layer-to-layer max 0.08 in", met:"Max 5 mm/mtr diameter, layer-to-layer max 2 mm"},
+  endUse:"Fabrication & Powder Coating",
+  packing:"Eye to wall, as per Alumill Packing Specification"
+};
+
+function freshDefaults(){
+  return { products: JSON.parse(JSON.stringify(DEFAULT_PRODUCTS)),
+           alloys:   JSON.parse(JSON.stringify(DEFAULT_ALLOYS)),
+           rules:    JSON.parse(JSON.stringify(DEFAULT_RULES)),
+           thicknessRanges: JSON.parse(JSON.stringify(DEFAULT_THICKNESS_RANGES)) };
+}
+
+let DATA = freshDefaults();
+let adminUnlockedFlag = false;
+
+/* =====================================================================
+   LOOKUP HELPERS
+   ===================================================================== */
+function findBand(alloyKey, temperKey, thicknessMM){
+  const t = DATA.alloys[alloyKey]?.tempers?.[temperKey];
+  const ranges = DATA.thicknessRanges;
+  if(!t || !t.values || !ranges || !ranges.length) return null;
+  let range = ranges.find(r => thicknessMM >= r.min && thicknessMM <= r.max);
+  let outOfRange = false;
+  if(!range){
+    const sorted = [...ranges].sort((a,b)=>a.min-b.min);
+    range = thicknessMM < sorted[0].min ? sorted[0] : sorted[sorted.length-1];
+    outOfRange = true;
+  }
+  const cell = t.values[range.id] || bv();
+  return { min:range.min, max:range.max, ...cell, outOfRange };
+}
+
+function findWidthBracket(brackets, widthMM){
+  let bracket = brackets.find(b => widthMM >= b.minMm && widthMM <= b.maxMm);
+  if(!bracket) bracket = widthMM < brackets[0].minMm ? brackets[0] : brackets[brackets.length-1];
+  return bracket;
+}
+
+function findThicknessTolerance(thicknessMM, widthMM){
+  const bracket = findWidthBracket(ANSI_WIDTH_BRACKETS_7_7A, widthMM);
+  if(!bracket.verified){
+    return { tolIn:null, tolMm:null, verified:false, bracketLabel:bracket.label };
+  }
+  const inches = mm2in(thicknessMM);
+  let band = ANSI_THICK_TOL.find(b => inches >= b.min && inches <= b.max);
+  if(!band) band = inches < ANSI_THICK_TOL[0].min ? ANSI_THICK_TOL[0] : ANSI_THICK_TOL[ANSI_THICK_TOL.length-1];
+  return { tolIn: band.tol, tolMm: band.tol*25.4, verified:true, bracketLabel:bracket.label };
+}
+
+function findWidthTolerance(widthMM){
+  const bracket = findWidthBracket(ANSI_WIDTH_BRACKETS_7_11, widthMM);
+  if(!bracket.verified){
+    return { tolIn:null, tolMm:null, verified:false, bracketLabel:bracket.label };
+  }
+  return { tolIn:bracket.tolIn, tolMm:bracket.tolMm, verified:true, bracketLabel:bracket.label };
+}
+
+function findMatchingRuleRows(product, alloyKey, temperKey, thicknessMM, widthMM){
+  const byLabel = new Map(); // label -> array of remark strings, in rule order
+  for(const r of DATA.rules){
+    if(!r.label) continue; // rules without a label don't produce a row
+    if(r.product !== "Any" && r.product !== product) continue;
+    if(r.alloy   !== "Any" && r.alloy   !== alloyKey) continue;
+    if(r.temper  !== "Any" && r.temper  !== temperKey) continue;
+    if(thicknessMM < r.thickMin || thicknessMM > r.thickMax) continue;
+    if(widthMM < (r.widthMin??0) || widthMM > (r.widthMax??9999)) continue;
+    if(!byLabel.has(r.label)) byLabel.set(r.label, []);
+    if(r.remark) byLabel.get(r.label).push(r.remark);
+  }
+  const rows = [];
+  for(const [label, remarks] of byLabel.entries()){
+    rows.push({ label, remark: remarks.join(' ') });
+  }
+  return rows;
+}
+
+function todayStr(){
+  const d = new Date(); const pad = n => String(n).padStart(2,'0');
+  return `${pad(d.getDate())}.${pad(d.getMonth()+1)}.${d.getFullYear()}`;
+}
+function kg(mpa){ return mpa==null ? null : Math.round(mpa*0.10197*100)/100; }
+
+/* =====================================================================
+   DOM REFS
+   ===================================================================== */
+const alloySel = document.getElementById('alloySel');
+const temperSel = document.getElementById('temperSel');
+const thickInput = document.getElementById('thickInput');
+const widthInput = document.getElementById('widthInput');
+const unitsSel = document.getElementById('unitsSel');
+const custName = document.getElementById('custName');
+const tdsDate = document.getElementById('tdsDate');
+const tdsRef = document.getElementById('tdsRef');
+const productSel = document.getElementById('productSel');
+const productOther = document.getElementById('productOther');
+const productWarn = document.getElementById('productWarn');
+const tabTds = document.getElementById('tabTds');
+const tabCompare = document.getElementById('tabCompare');
+const tabAdmin = document.getElementById('tabAdmin');
+const tdsControls = document.getElementById('tdsControls');
+const compareControls = document.getElementById('compareControls');
+const adminControls = document.getElementById('adminControls');
+const tdsBody = document.getElementById('tdsBody');
+const compareBody = document.getElementById('compareBody');
+const footNote = document.getElementById('footNote');
+const cmpAlloySel = document.getElementById('cmpAlloySel');
+const cmpTemperSel = document.getElementById('cmpTemperSel');
+const cmpPairList = document.getElementById('cmpPairList');
+const cmpThickInput = document.getElementById('cmpThickInput');
+const libTag = document.getElementById('libTag');
+const libraryModal = document.getElementById('libraryModal');
+const btnOpenLibrary = document.getElementById('btnOpenLibrary');
+const closeLibraryModal = document.getElementById('closeLibraryModal');
+const libSearch = document.getElementById('libSearch');
+
+const TDS_FOOT = "Standard declared per selected alloy (see Standard row). Thickness and width tolerances per ANSI H35.2 (Aluminum Association), applicable table and width band noted below. Tensile, yield, elongation, and bend are QC master-library values and are not customer-editable in normal use. This document supersedes any previously issued sheet for the same order reference.";
+const CMP_FOOT = "This sheet compares mechanical and chemical properties only — no thickness, width, coil, or packing tolerances are included. For an order-specific, dimensioned sheet, use the TDS Generator tab.";
+
+let mode = 'tds';
+let lastAutoRef = ""; // tracks the last auto-generated TDS ref so switching alloy/temper can refresh it without clobbering a user-typed ref
+
+/* =====================================================================
+   POPULATE SELECTS
+   ===================================================================== */
+function populateProductSelect(){
+  const current = productSel.value;
+  productSel.innerHTML = '<option value="" disabled selected>— Select product —</option>';
+  DATA.products.forEach(p=>{
+    const o = document.createElement('option'); o.value = p; o.textContent = p; productSel.appendChild(o);
+  });
+  const other = document.createElement('option'); other.value = "Other"; other.textContent = "Other (specify below)";
+  productSel.appendChild(other);
+  if(current && [...productSel.options].some(o=>o.value===current)) productSel.value = current;
+}
+
+function populateAlloySelect(){
+  const current = alloySel.value;
+  alloySel.innerHTML = "";
+  Object.keys(DATA.alloys).forEach(k=>{
+    const o = document.createElement('option'); o.value = k; o.textContent = DATA.alloys[k].label; alloySel.appendChild(o);
+  });
+  if(current && DATA.alloys[current]) alloySel.value = current;
+  refreshTempers();
+}
+
+function refreshTempers(){
+  const current = temperSel.value;
+  temperSel.innerHTML = "";
+  const alloy = DATA.alloys[alloySel.value];
+  if(!alloy) return;
+  Object.keys(alloy.tempers).forEach(t=>{
+    const o = document.createElement('option'); o.value = t;
+    const note = alloy.tempers[t].equivNote;
+    o.textContent = note ? `${t} — ${note}` : t;
+    temperSel.appendChild(o);
+  });
+  if(current && alloy.tempers[current]) temperSel.value = current;
+}
+
+function populateAll(){
+  populateProductSelect();
+  populateAlloySelect();
+  buildLibraryTable();
+  populateCmpAlloySel(); renderCmpPairList();
+  if(adminUnlockedFlag) renderAdminPanels();
+}
+
+/* =====================================================================
+   READ-ONLY LIBRARY TABLE (user view)
+   ===================================================================== */
+function buildLibraryTable(){
+  const body = document.getElementById('libBody');
+  const chemBody = document.getElementById('chemBody');
+  body.innerHTML = ""; chemBody.innerHTML = "";
+  Object.keys(DATA.alloys).forEach(ak=>{
+    const alloy = DATA.alloys[ak];
+    Object.keys(alloy.tempers).forEach(tk=>{
+      const temper = alloy.tempers[tk];
+      const noteAttr = temper.equivNote ? ` title="${esc(temper.equivNote)}"` : "";
+      const temperCell = temper.equivNote ? `${esc(tk)} <span class="unverified" style="font-size:9px;">ⓘ</span>` : esc(tk);
+      DATA.thicknessRanges.forEach(range=>{
+        const b = temper.values[range.id];
+        if(!b || (b.tensileMin==null && b.yieldMin==null && b.elong==null && b.bend==null)) return; // nothing on file for this range — skip rather than show an all-blank row
+        const tr = document.createElement('tr');
+        const elongTxt = b.elong==null ? '<span class="unverified">verify</span>' : (b.verified?esc(b.elong):`<span class="unverified">${esc(b.elong)}</span>`);
+        const bendTxt = b.bend==null ? '<span class="unverified">verify</span>' : (b.verified?esc(b.bend):`<span class="unverified">${esc(b.bend)}</span>`);
+        const tensileTxt = b.tensileMin==null ? '<span class="unverified">verify</span>' : `${esc(b.tensileMin)}–${b.tensileMax==null?'no max':esc(b.tensileMax)}`;
+        const yieldTxt = b.yieldMin==null ? '<span class="unverified">verify</span>' : esc(b.yieldMin);
+        tr.innerHTML = `<td class="locked"${noteAttr}>${esc(alloy.label)}</td><td class="locked"${noteAttr}>${temperCell}</td><td class="locked" style="font-size:9px;">${esc(alloy.standard)}</td>
+          <td class="locked">${range.min}–${range.max}</td>
+          <td class="locked">${tensileTxt}</td>
+          <td class="locked">${yieldTxt}</td>
+          <td class="locked">${elongTxt}</td>
+          <td class="locked">${bendTxt}</td>`;
+        body.appendChild(tr);
+      });
+    });
+    const c = alloy.chemistry;
+    const ctr = document.createElement('tr');
+    ctr.innerHTML = `<td class="locked">${esc(alloy.label)}</td><td class="locked">${esc(c.Si)}</td><td class="locked">${esc(c.Fe)}</td><td class="locked">${esc(c.Cu)}</td><td class="locked">${esc(c.Mn)}</td><td class="locked">${esc(c.Mg)}</td><td class="locked">${esc(c.Cr)}</td><td class="locked">${esc(c.Zn)}</td><td class="locked">${esc(c.Ti)}</td><td class="locked">${esc(c.each)}</td><td class="locked">${esc(c.total)}</td><td class="locked">${esc(c.Al)}</td>`;
+    chemBody.appendChild(ctr);
+  });
+  if(typeof libSearch !== 'undefined' && libSearch) filterLibrary(libSearch.value);
+}
+
+/* =====================================================================
+   TDS RENDER
+   ===================================================================== */
+function render(){
+  const alloyKey = alloySel.value;
+  const alloy = DATA.alloys[alloyKey];
+  if(!alloy) return;
+  const temperKey = temperSel.value;
+  const thicknessMM = parseFloat(thickInput.value) || 0;
+  const widthMM = parseFloat(widthInput.value) || 0;
+  const band = findBand(alloyKey, temperKey, thicknessMM);
+  const thickTol = findThicknessTolerance(thicknessMM, widthMM);
+  const widthTol = findWidthTolerance(widthMM);
+  const productValue = productSel.value === 'Other' ? (productOther.value.trim() || 'Other (unspecified)') : (productSel.value || '— not selected —');
+  const ruleRows = findMatchingRuleRows(productValue, alloyKey, temperKey, thicknessMM, widthMM);
+
+  const cust = custName.value.trim() || "—";
+  const date = tdsDate.value.trim() || todayStr(); tdsDate.value = date;
+  // Auto-generate a ref only when the field is empty or still holds the last
+  // auto-generated value — that way switching alloy/temper before manually typing a
+  // ref keeps it in sync, but never overwrites a ref the user has customized.
+  let ref = tdsRef.value.trim();
+  if(!ref || ref === lastAutoRef){
+    ref = `ATG-TDS-${alloyKey}-${date.replace(/\./g,'')}`;
+    lastAutoRef = ref; // only track refs we generated ourselves — never a user-typed one
+  }
+  tdsRef.value = ref;
+
+  const unitsMode = unitsSel.value; // 'both' | 'metric' | 'imperial'
+  const fmtDual = (impStr, metStr) => unitsMode==='metric' ? metStr : unitsMode==='imperial' ? impStr : `${impStr} / ${metStr}`;
+
+  document.getElementById('docTitleAlloy').textContent = `Technical Data Sheet — Aluminium Coil Alloy ${alloy.label}`;
+  document.getElementById('refOut').textContent = ref;
+  document.getElementById('dateOut').textContent = date;
+  document.getElementById('custOut').textContent = cust;
+  document.getElementById('alloyOut').textContent = `${alloy.label} / ${temperKey}`;
+  document.getElementById('thickOut').textContent = fmtDual(`${mm2in(thicknessMM).toFixed(4)}"`, `${thicknessMM.toFixed(2)} mm`);
+  document.getElementById('widthOut').textContent = fmtDual(`${mm2in(widthMM).toFixed(2)}"`, `${widthMM.toFixed(0)} mm`);
+  document.getElementById('footRef').textContent = `${ref} · ${date}`;
+  document.getElementById('sealOut').innerHTML = `CERTIFIED<br>${esc(alloy.label)}<br>${esc(temperKey)}`;
+  footNote.textContent = TDS_FOOT;
+
+  const rangeWarn = band && band.outOfRange ? " ⚠ outside verified band — confirm with QC" : "";
+  // A band can hold real numbers yet still be flagged verified:false (a best-available
+  // placeholder pending QC confirmation, see DATA notes) — that must show up on the
+  // actual issued document, not just in the read-only Library view, or QC placeholder
+  // figures get printed on a certified TDS as if they were confirmed fact.
+  const unverifiedWarn = band && band.verified === false ? " ⚠ UNVERIFIED — placeholder pending QC confirmation, do not treat as certified" : "";
+  const warnSuffix = rangeWarn + unverifiedWarn;
+  const elongVal = band && band.elong!=null ? `Min ${band.elong}%${warnSuffix}` : `Not yet verified — see Admin${rangeWarn}`;
+  const bendVal = band && band.bend!=null ? `${band.bend}${warnSuffix}` : `Not yet verified — see Admin${rangeWarn}`;
+  const tensileImp = band && band.tensileMin!=null ? `Min ${band.tensileMin} MPa${band.tensileMax!=null?`, Max ${band.tensileMax} MPa`:' (no max specified)'}${warnSuffix}` : "Not yet verified — see Admin";
+  const tensileMet = band && band.tensileMin!=null ? `Min ${kg(band.tensileMin)} kg/mm²${band.tensileMax!=null?`, Max ${kg(band.tensileMax)} kg/mm²`:' (no max specified)'}${warnSuffix}` : "Not yet verified — see Admin";
+  const yieldImp = band && band.yieldMin!=null ? `Min ${band.yieldMin} MPa${warnSuffix}` : "Not yet verified — see Admin";
+  const yieldMet = band && band.yieldMin!=null ? `Min ${kg(band.yieldMin)} kg/mm²${warnSuffix}` : "Not yet verified — see Admin";
+  const thickTolTxt = thickTol.verified
+    ? [`± ${thickTol.tolIn.toFixed(4)} in (ANSI H35.2, Tbl 7.7a)`, `± ${thickTol.tolMm.toFixed(3)} mm (ANSI H35.2, Tbl 7.7a)`]
+    : [`Not verified — this width falls in ANSI H35.2's "${thickTol.bracketLabel}" bracket; only "over 1000 thru 1500 mm" is confirmed on file`,
+       `Not verified — this width falls in ANSI H35.2's "${thickTol.bracketLabel}" bracket; only "over 1000 thru 1500 mm" is confirmed on file`];
+  const widthTolTxt = widthTol.verified
+    ? [`± ${widthTol.tolIn.toFixed(4)} in (ANSI H35.2, Tbl 7.11)`, `± ${widthTol.tolMm.toFixed(2)} mm (ANSI H35.2, Tbl 7.11)`]
+    : [`Not verified — this width falls in ANSI H35.2's "${widthTol.bracketLabel}" bracket; only "over 600 thru 1500 mm" is confirmed on file`,
+       `Not verified — this width falls in ANSI H35.2's "${widthTol.bracketLabel}" bracket; only "over 600 thru 1500 mm" is confirmed on file`];
+
+  const rows = [
+    ["Product Type", productValue, productValue],
+    ["Standard", alloy.standard, alloy.standard],
+    ["Alloy", alloy.label, alloy.label],
+    ["Temper", temperKey, temperKey],
+    ["Thickness", `${mm2in(thicknessMM).toFixed(4)} in`, `${thicknessMM.toFixed(2)} mm`],
+    ["Thickness Tolerance", thickTolTxt[0], thickTolTxt[1]],
+    ["Width", `${mm2in(widthMM).toFixed(2)} in`, `${widthMM.toFixed(0)} mm`],
+    ["Width Tolerance", widthTolTxt[0], widthTolTxt[1]],
+    ["Bend", bendVal, bendVal],
+    ["Tensile Strength", tensileImp, tensileMet, true],
+    ["Yield Strength", yieldImp, yieldMet, true],
+    ["Elongation", elongVal, elongVal, true],
+    ...ruleRows.map(rr => [rr.label, rr.remark, rr.remark, false, true]),
+    ["Surface Oil Content", "50 mg/sq.m per side, after oil lubrication for protection", "50 mg/sq.m per side, after oil lubrication for protection"],
+    ["Cardboard Spool", FIXED.spool.imp, FIXED.spool.met],
+    ["Coil ID", FIXED.coilId.imp, FIXED.coilId.met],
+    ["Coil Weight", FIXED.coilWeight.imp, FIXED.coilWeight.met],
+    ["Winding", FIXED.winding.imp, FIXED.winding.met],
+    ["End Use", FIXED.endUse, FIXED.endUse],
+    ["Packing", FIXED.packing, FIXED.packing]
+  ];
+
+  const specHead = document.getElementById('specHead');
+  if(unitsMode==='both'){
+    specHead.innerHTML = '<tr><th style="width:34px;">#</th><th>Specification</th><th>Imperial dimension</th><th>Metric dimension</th></tr>';
+  } else if(unitsMode==='metric'){
+    specHead.innerHTML = '<tr><th style="width:34px;">#</th><th>Specification</th><th>Metric dimension</th></tr>';
+  } else {
+    specHead.innerHTML = '<tr><th style="width:34px;">#</th><th>Specification</th><th>Imperial dimension</th></tr>';
+  }
+
+  const body = document.getElementById('specBody');
+  body.innerHTML = "";
+  rows.forEach((r,i)=>{
+    const tr = document.createElement('tr');
+    if(r[3]) tr.className = "locked";
+    if(r[4]) tr.className = "remark";
+    const v1 = esc(r[1]), v2 = esc(r[2]);
+    const valueCells = unitsMode==='both' ? `<td class="imp">${v1}</td><td class="met">${v2}</td>`
+                      : unitsMode==='metric' ? `<td class="met">${v2}</td>`
+                      : `<td class="imp">${v1}</td>`;
+    tr.innerHTML = `<td class="snum">${i+1}</td><td class="label">${esc(r[0])}</td>${valueCells}`;
+    body.appendChild(tr);
+  });
+}
+
+/* =====================================================================
+   COMPARATOR
+   ===================================================================== */
+let cmpPairs = [];
+
+function populateCmpAlloySel(){
+  const current = cmpAlloySel.value;
+  cmpAlloySel.innerHTML = "";
+  Object.keys(DATA.alloys).forEach(ak=>{
+    const o = document.createElement('option'); o.value = ak; o.textContent = DATA.alloys[ak].label; cmpAlloySel.appendChild(o);
+  });
+  if(current && DATA.alloys[current]) cmpAlloySel.value = current;
+  refreshCmpTempers();
+}
+
+function refreshCmpTempers(){
+  const current = cmpTemperSel.value;
+  cmpTemperSel.innerHTML = "";
+  const alloy = DATA.alloys[cmpAlloySel.value];
+  if(!alloy) return;
+  Object.keys(alloy.tempers).forEach(t=>{
+    const o = document.createElement('option'); o.value = t;
+    const note = alloy.tempers[t].equivNote;
+    o.textContent = note ? `${t} — ${note}` : t;
+    cmpTemperSel.appendChild(o);
+  });
+  if(current && alloy.tempers[current]) cmpTemperSel.value = current;
+}
+
+function renderCmpPairList(){
+  cmpPairList.innerHTML = "";
+  if(!cmpPairs.length){
+    const empty = document.createElement('div');
+    empty.className = "alloy-check-row";
+    empty.innerHTML = `<span style="color:#999;font-style:italic;">No alloys added yet — pick one above and click "Add to comparison."</span>`;
+    cmpPairList.appendChild(empty);
+    return;
+  }
+  cmpPairs.forEach((p, idx)=>{
+    const row = document.createElement('div'); row.className = "alloy-check-row";
+    row.innerHTML = `<label style="flex:1;">${esc(DATA.alloys[p.alloy].label)} — ${esc(p.temper)}</label><button type="button" class="danger-btn">Remove</button>`;
+    row.querySelector('button').addEventListener('click', ()=>{ cmpPairs.splice(idx,1); renderCmpPairList(); renderCompare(); });
+    cmpPairList.appendChild(row);
+  });
+}
+
+document.getElementById('btnCmpAdd').addEventListener('click', ()=>{
+  const alloy = cmpAlloySel.value, temper = cmpTemperSel.value;
+  if(!alloy || !temper) return;
+  if(cmpPairs.some(p=>p.alloy===alloy && p.temper===temper)) return; // no duplicates
+  cmpPairs.push({alloy, temper});
+  renderCmpPairList();
+  renderCompare();
+});
+document.getElementById('cmpClearAll').addEventListener('click', ()=>{
+  cmpPairs = [];
+  renderCmpPairList();
+  renderCompare();
+});
+cmpAlloySel.addEventListener('change', refreshCmpTempers);
+
+function renderCompare(){
+  const pairs = cmpPairs;
+  const thicknessMM = parseFloat(cmpThickInput.value) || 0;
+  const cust = custName.value.trim() || "—";
+  const date = tdsDate.value.trim() || todayStr(); tdsDate.value = date;
+  const ref = tdsRef.value.trim() || `ATG-CMP-${date.replace(/\./g,'')}`; tdsRef.value = ref;
+
+  document.getElementById('docTitleAlloy').textContent = "Alloy Comparison — Mechanical & Chemical Properties";
+  document.getElementById('refOut').textContent = ref;
+  document.getElementById('dateOut').textContent = date;
+  document.getElementById('cmpCustOut').textContent = cust;
+  document.getElementById('cmpThickOut').textContent = `${mm2in(thicknessMM).toFixed(4)}" / ${thicknessMM.toFixed(2)} mm`;
+  document.getElementById('cmpCountOut').textContent = pairs.length ? pairs.map(p=>`${DATA.alloys[p.alloy].label} (${p.temper})`).join(', ') : 'None selected';
+  document.getElementById('footRef').textContent = `${ref} · ${date}`;
+  document.getElementById('sealOut').innerHTML = `CERTIFIED<br>COMPARISON`;
+  footNote.textContent = CMP_FOOT;
+
+  const mechBody = document.getElementById('cmpMechBody');
+  const chemBody = document.getElementById('cmpChemBody');
+  mechBody.innerHTML = ""; chemBody.innerHTML = "";
+  const seenAlloys = new Set();
+  pairs.forEach(({alloy:ak, temper:tk})=>{
+    const alloy = DATA.alloys[ak];
+    const band = findBand(ak, tk, thicknessMM);
+    const rangeWarn = band && band.outOfRange ? " ⚠" : "";
+    const unverifiedWarn = band && band.verified === false ? " ⚠unverified" : "";
+    const warnSuffix = rangeWarn + unverifiedWarn;
+    const elongTxt = band && band.elong!=null ? `${band.elong}${warnSuffix}` : `verify${rangeWarn}`;
+    const bendTxt = band && band.bend!=null ? `${band.bend}${warnSuffix}` : `verify${rangeWarn}`;
+    const tensileTxt = band && band.tensileMin!=null ? `${band.tensileMin}–${band.tensileMax==null?'no max':band.tensileMax}${warnSuffix}` : `verify${rangeWarn}`;
+    const yieldTxt = band && band.yieldMin!=null ? `${band.yieldMin}${warnSuffix}` : `verify${rangeWarn}`;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td class="alloyname">${esc(alloy.label)}</td><td>${esc(tk)}</td><td style="font-size:9px;">${esc(alloy.standard)}</td>
+      <td>${esc(tensileTxt)}</td>
+      <td>${esc(yieldTxt)}</td>
+      <td>${esc(elongTxt)}</td><td>${esc(bendTxt)}</td>`;
+    mechBody.appendChild(tr);
+    if(!seenAlloys.has(ak)){
+      seenAlloys.add(ak);
+      const c = alloy.chemistry;
+      const ctr = document.createElement('tr');
+      ctr.innerHTML = `<td class="alloyname">${esc(alloy.label)}</td><td>${esc(c.Si)}</td><td>${esc(c.Fe)}</td><td>${esc(c.Cu)}</td><td>${esc(c.Mn)}</td><td>${esc(c.Mg)}</td><td>${esc(c.Cr)}</td><td>${esc(c.Zn)}</td><td>${esc(c.Ti)}</td><td>${esc(c.each)}</td><td>${esc(c.total)}</td><td>${esc(c.Al)}</td>`;
+      chemBody.appendChild(ctr);
+    }
+  });
+}
+
+/* =====================================================================
+   MODE SWITCHING
+   ===================================================================== */
+function setMode(newMode){
+  mode = newMode;
+  tabTds.classList.toggle('active', mode==='tds');
+  tabCompare.classList.toggle('active', mode==='compare');
+  tabAdmin.classList.toggle('active', mode==='admin');
+  tdsControls.classList.toggle('hidden', mode!=='tds');
+  compareControls.classList.toggle('hidden', mode!=='compare');
+  adminControls.classList.toggle('hidden', mode!=='admin');
+  tdsBody.classList.toggle('hidden', mode!=='tds');
+  compareBody.classList.toggle('hidden', mode!=='compare');
+  document.getElementById('sheet').classList.toggle('hidden', mode==='admin' && adminUnlockedFlag);
+  document.getElementById('adminMainPanel').classList.toggle('hidden', !(mode==='admin' && adminUnlockedFlag));
+  if(mode==='tds'){ tdsRef.value=""; render(); }
+  else if(mode==='compare'){ tdsRef.value=""; renderCompare(); }
+}
+tabTds.addEventListener('click', ()=>setMode('tds'));
+tabCompare.addEventListener('click', ()=>setMode('compare'));
+tabAdmin.addEventListener('click', ()=>setMode('admin'));
+
+/* =====================================================================
+   ADMIN: PRODUCTS, RULES, ALLOYS EDITORS
+   ===================================================================== */
+function renderAdminPanels(){
+  renderProductAdmin();
+  renderRuleAdmin();
+  renderAlloyAdmin();
+}
+
+function renderProductAdmin(){
+  const list = document.getElementById('productList');
+  list.innerHTML = "";
+  DATA.products.forEach((p,idx)=>{
+    const row = document.createElement('div'); row.className = "product-row";
+    row.innerHTML = `<input type="text" value="${esc(p)}" data-idx="${idx}"><button type="button" class="danger-btn">Remove</button>`;
+    row.querySelector('input').addEventListener('change', e=>{ DATA.products[idx] = e.target.value; populateProductSelect(); });
+    row.querySelector('button').addEventListener('click', ()=>{ DATA.products.splice(idx,1); renderProductAdmin(); populateProductSelect(); });
+    list.appendChild(row);
+  });
+}
+document.getElementById('btnAddProduct').addEventListener('click', ()=>{
+  const el = document.getElementById('newProductName');
+  const name = el.value.trim();
+  if(!name) return;
+  DATA.products.push(name); el.value = "";
+  renderProductAdmin(); populateProductSelect();
+});
+
+function renderRuleAdmin(){
+  const list = document.getElementById('ruleList');
+  list.innerHTML = "";
+  const labelsSoFar = [];
+  DATA.rules.forEach((r,idx)=>{
+    const row = document.createElement('div'); row.className = "band-block";
+    const productOpts = ['Any', ...DATA.products].map(p=>`<option value="${esc(p)}" ${r.product===p?'selected':''}>${esc(p)}</option>`).join('');
+    const alloyOpts = ['Any', ...Object.keys(DATA.alloys)].map(a=>`<option value="${esc(a)}" ${r.alloy===a?'selected':''}>${a==='Any'?'Any':esc(DATA.alloys[a].label)}</option>`).join('');
+
+    let warning = "";
+    if(!r.label){
+      warning = `<div class="field-warn show" style="margin-top:8px;">⚠ No Label set — this rule will never produce a row on the TDS, no matter what matches. Give it a Label (e.g. "Surface Remark").</div>`;
+    } else if(labelsSoFar.includes(r.label)){
+      warning = `<div class="hint" style="margin-top:8px;color:var(--steel-dark);background:var(--alu-1);padding:6px 8px;border-radius:2px;">ℹ️ Rule ${labelsSoFar.indexOf(r.label)+1} above also uses the Label "${esc(r.label)}". If both rules match the same TDS, their Remarks are combined into one "${esc(r.label)}" row (this rule's text appended after Rule ${labelsSoFar.indexOf(r.label)+1}'s). If only one matches at a time, just that one shows.</div>`;
+    }
+    if(r.label) labelsSoFar.push(r.label);
+
+    row.innerHTML = `
+      <h5>Rule ${idx+1}</h5>
+      <div class="rule-field-grid">
+        <div class="field-with-label"><span class="field-label">Product</span><select class="r-product">${productOpts}</select></div>
+        <div class="field-with-label"><span class="field-label">Alloy</span><select class="r-alloy">${alloyOpts}</select></div>
+        <div class="field-with-label"><span class="field-label">Temper (Any or exact)</span><input type="text" class="r-temper" value="${esc(r.temper)}"></div>
+      </div>
+      <div class="rule-field-grid cols2" style="margin-top:8px;">
+        <div class="field-with-label"><span class="field-label">Thickness min (mm)</span><input type="number" class="r-min" value="${r.thickMin}"></div>
+        <div class="field-with-label"><span class="field-label">Thickness max (mm)</span><input type="number" class="r-max" value="${r.thickMax}"></div>
+      </div>
+      <div class="rule-field-grid cols2" style="margin-top:8px;">
+        <div class="field-with-label"><span class="field-label">Width min (mm)</span><input type="number" class="r-wmin" value="${r.widthMin??0}"></div>
+        <div class="field-with-label"><span class="field-label">Width max (mm)</span><input type="number" class="r-wmax" value="${r.widthMax??9999}"></div>
+      </div>
+      <div class="rule-field-grid cols2" style="margin-top:8px;">
+        <div class="field-with-label"><span class="field-label">Label (spec row name shown on TDS, e.g. "Flatness")</span><input type="text" class="r-label" value="${esc(r.label||'')}"></div>
+        <div class="field-with-label"><span class="field-label">Remark (the text shown for that row, e.g. "Tension levelled, flatness ≤ 10")</span><input type="text" class="r-remark" value="${esc(r.remark||'')}"></div>
+      </div>
+      ${warning}
+      <button type="button" class="danger-btn" style="margin-top:8px;">Remove rule</button>`;
+    const upd = ()=>{
+      r.product = row.querySelector('.r-product').value;
+      r.alloy = row.querySelector('.r-alloy').value;
+      r.temper = row.querySelector('.r-temper').value || "Any";
+      r.thickMin = parseFloat(row.querySelector('.r-min').value)||0;
+      r.thickMax = parseFloat(row.querySelector('.r-max').value)||9999;
+      r.widthMin = parseFloat(row.querySelector('.r-wmin').value)||0;
+      r.widthMax = parseFloat(row.querySelector('.r-wmax').value)||9999;
+      r.label = row.querySelector('.r-label').value;
+      r.remark = row.querySelector('.r-remark').value;
+      renderRuleAdmin(); // rebuild so warnings reflect the change immediately
+      render();
+    };
+    row.querySelectorAll('input,select').forEach(el=>el.addEventListener('change', upd));
+    row.querySelector('.danger-btn').addEventListener('click', ()=>{ DATA.rules.splice(idx,1); renderRuleAdmin(); render(); });
+    list.appendChild(row);
+  });
+}
+document.getElementById('btnAddRule').addEventListener('click', ()=>{
+  DATA.rules.push({id:'r'+Date.now(), product:'Any', alloy:'Any', temper:'Any', thickMin:0, thickMax:9999, widthMin:0, widthMax:9999, label:'', remark:''});
+  renderRuleAdmin();
+});
+
+// Tracks each alloy's expanded/collapsed state per section, so re-rendering after an
+// edit doesn't snap every alloy back open.
+let alloyTempersCollapseState = {};
+let thicknessBandsCollapseState = {};
+
+function renderAlloyAdmin(){
+  renderAlloyTempersAdmin();
+  renderSharedRangesAdmin();
+  renderThicknessBandsAdmin();
+}
+
+function renderAlloyTempersAdmin(){
+  const list = document.getElementById('alloyTempersList');
+  list.innerHTML = "";
+  Object.keys(DATA.alloys).forEach(ak=>{
+    const alloy = DATA.alloys[ak];
+    const details = document.createElement('details');
+    details.className = "alloy-collapse";
+    details.open = alloyTempersCollapseState[ak] ?? true;
+    details.addEventListener('toggle', ()=>{ alloyTempersCollapseState[ak] = details.open; });
+
+    const temperChips = Object.keys(alloy.tempers).map(tk=>{
+      const note = alloy.tempers[tk].equivNote;
+      return `<span class="temper-chip"${note?` title="${esc(note)}"`:''}>${esc(tk)}${note?' ⓘ':''}</span>`;
+    }).join('');
+
+    details.innerHTML = `
+      <summary>${esc(alloy.label)} <span style="color:#999;font-weight:400;">(${esc(ak)})</span></summary>
+      <div class="alloy-collapse-body">
+        <div class="field-with-label" style="margin-bottom:8px;"><span class="field-label">Standard</span><input type="text" class="al-standard" value="${esc(alloy.standard)}"></div>
+        <div class="row3">
+          <div class="field-with-label"><span class="mini-label">Si</span><input type="text" class="al-si" value="${esc(alloy.chemistry.Si)}"></div>
+          <div class="field-with-label"><span class="mini-label">Fe</span><input type="text" class="al-fe" value="${esc(alloy.chemistry.Fe)}"></div>
+          <div class="field-with-label"><span class="mini-label">Cu</span><input type="text" class="al-cu" value="${esc(alloy.chemistry.Cu)}"></div>
+        </div>
+        <div class="row3" style="margin-top:6px;">
+          <div class="field-with-label"><span class="mini-label">Mn</span><input type="text" class="al-mn" value="${esc(alloy.chemistry.Mn)}"></div>
+          <div class="field-with-label"><span class="mini-label">Mg</span><input type="text" class="al-mg" value="${esc(alloy.chemistry.Mg)}"></div>
+          <div class="field-with-label"><span class="mini-label">Cr</span><input type="text" class="al-cr" value="${esc(alloy.chemistry.Cr)}"></div>
+        </div>
+        <div class="row3" style="margin-top:6px;">
+          <div class="field-with-label"><span class="mini-label">Zn</span><input type="text" class="al-zn" value="${esc(alloy.chemistry.Zn)}"></div>
+          <div class="field-with-label"><span class="mini-label">Ti</span><input type="text" class="al-ti" value="${esc(alloy.chemistry.Ti)}"></div>
+          <div class="field-with-label"><span class="mini-label">Each (other elements)</span><input type="text" class="al-each" value="${esc(alloy.chemistry.each)}"></div>
+        </div>
+        <div class="row2" style="margin-top:6px;">
+          <div class="field-with-label"><span class="mini-label">Total (other elements)</span><input type="text" class="al-total" value="${esc(alloy.chemistry.total)}"></div>
+          <div class="field-with-label"><span class="mini-label">Al (aluminium)</span><input type="text" class="al-al" value="${esc(alloy.chemistry.Al)}"></div>
+        </div>
+        <div style="margin-top:12px;padding-top:10px;border-top:1px dashed var(--line);">
+          <span class="field-label">Tempers</span>
+          <div class="temper-chip-list">${temperChips}</div>
+          <button type="button" class="ghost" data-add-temper="${esc(ak)}" style="margin-top:8px;">+ Add temper</button>
+        </div>
+      </div>`;
+
+    details.querySelector('.al-standard').addEventListener('change', e=>{ alloy.standard = e.target.value; populateAll(); });
+    const cf = {si:'.al-si',fe:'.al-fe',cu:'.al-cu',mn:'.al-mn',mg:'.al-mg',cr:'.al-cr',zn:'.al-zn',ti:'.al-ti',each:'.al-each',total:'.al-total',al:'.al-al'};
+    const keyMap = {si:'Si',fe:'Fe',cu:'Cu',mn:'Mn',mg:'Mg',cr:'Cr',zn:'Zn',ti:'Ti',each:'each',total:'total',al:'Al'};
+    Object.keys(cf).forEach(k=>{
+      details.querySelector(cf[k]).addEventListener('change', e=>{ alloy.chemistry[keyMap[k]] = e.target.value; populateAll(); });
+    });
+    details.querySelector('[data-add-temper]').addEventListener('click', (e)=>{
+      const name = prompt("New temper name (e.g. H16):");
+      if(!name) return;
+      if(alloy.tempers[name]){ alert("Temper already exists."); return; }
+      alloy.tempers[name] = { values: {} };
+      renderAlloyAdmin(); buildLibraryTable(); populateCmpAlloySel(); renderCmpPairList(); render();
+    });
+
+    list.appendChild(details);
+  });
+}
+
+function renderSharedRangesAdmin(){
+  const body = document.getElementById('sharedRangesBody');
+  body.innerHTML = "";
+  DATA.thicknessRanges.forEach((r,idx)=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="number" class="sr-min" value="${r.min}" step="0.01"></td>
+      <td><input type="number" class="sr-max" value="${r.max}" step="0.01"></td>
+      <td><button type="button" class="danger-btn">✕</button></td>`;
+    tr.querySelector('.sr-min').addEventListener('change', e=>{ r.min = parseFloat(e.target.value)||0; buildLibraryTable(); render(); });
+    tr.querySelector('.sr-max').addEventListener('change', e=>{ r.max = parseFloat(e.target.value)||0; buildLibraryTable(); render(); });
+    tr.querySelector('.danger-btn').addEventListener('click', ()=>{
+      if(!confirm(`Remove the ${r.min}–${r.max} mm range? Any alloy values stored against it become inactive (not deleted, just unused) unless you re-add an identical range.`)) return;
+      DATA.thicknessRanges.splice(idx,1);
+      renderSharedRangesAdmin(); renderThicknessBandsAdmin(); buildLibraryTable(); render();
+    });
+    body.appendChild(tr);
+  });
+}
+document.getElementById('btnAddRange').addEventListener('click', ()=>{
+  const last = DATA.thicknessRanges[DATA.thicknessRanges.length-1];
+  const newMin = last ? last.max : 0;
+  DATA.thicknessRanges.push({ id:'R'+Date.now(), min:newMin, max:newMin+1 });
+  renderSharedRangesAdmin(); renderThicknessBandsAdmin(); buildLibraryTable(); render();
+});
+
+function renderThicknessBandsAdmin(){
+  const list = document.getElementById('thicknessBandsList');
+  list.innerHTML = "";
+  Object.keys(DATA.alloys).forEach(ak=>{
+    const alloy = DATA.alloys[ak];
+    const details = document.createElement('details');
+    details.className = "alloy-collapse";
+    details.open = thicknessBandsCollapseState[ak] ?? true;
+    details.addEventListener('toggle', ()=>{ thicknessBandsCollapseState[ak] = details.open; });
+
+    let html = `<summary>${esc(alloy.label)} <span style="color:#999;font-weight:400;">(${esc(ak)})</span></summary><div class="alloy-collapse-body">`;
+    Object.keys(alloy.tempers).forEach(tk=>{
+      html += `<div style="margin-bottom:14px;">
+        <strong style="font-size:11.5px;">Temper: ${esc(tk)}</strong>
+        <table class="band-table">
+          <thead><tr>
+            <th>Range (mm)</th><th>Tensile min (MPa)</th><th>Tensile max (MPa)</th>
+            <th>Yield min (MPa)</th><th>Elongation (%)</th><th>Bend</th>
+          </tr></thead>
+          <tbody>`;
+      DATA.thicknessRanges.forEach(range=>{
+        if(!alloy.tempers[tk].values[range.id]) alloy.tempers[tk].values[range.id] = bv();
+        const b = alloy.tempers[tk].values[range.id];
+        html += `<tr data-alloy="${esc(ak)}" data-temper="${esc(tk)}" data-range="${esc(range.id)}">
+            <td style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#888;white-space:nowrap;">${range.min}–${range.max}</td>
+            <td><input type="number" class="b-tmin" value="${b.tensileMin==null?'':b.tensileMin}"></td>
+            <td><input type="number" class="b-tmax" value="${b.tensileMax==null?'':b.tensileMax}"></td>
+            <td><input type="number" class="b-ymin" value="${b.yieldMin==null?'':b.yieldMin}"></td>
+            <td><input type="text" class="b-elong" value="${esc(b.elong==null?'':b.elong)}"></td>
+            <td><input type="text" class="b-bend" value="${esc(b.bend==null?'':b.bend)}"></td>
+          </tr>`;
+      });
+      html += `</tbody></table>
+      </div>`;
+    });
+    html += `</div>`;
+    details.innerHTML = html;
+
+    details.querySelectorAll('tr[data-range]').forEach(rowEl=>{
+      const tk = rowEl.dataset.temper, rid = rowEl.dataset.range;
+      const cell = alloy.tempers[tk].values[rid];
+      const upd = ()=>{
+        const tMinStr = rowEl.querySelector('.b-tmin').value.trim();
+        const tMaxStr = rowEl.querySelector('.b-tmax').value.trim();
+        const yMinStr = rowEl.querySelector('.b-ymin').value.trim();
+        const elongStr = rowEl.querySelector('.b-elong').value.trim();
+        const bendStr = rowEl.querySelector('.b-bend').value.trim();
+        cell.tensileMin = tMinStr===''? null : parseFloat(tMinStr);
+        cell.tensileMax = tMaxStr===''? null : parseFloat(tMaxStr);
+        cell.yieldMin = yMinStr===''? null : parseFloat(yMinStr);
+        cell.elong = elongStr===''? null : parseFloat(elongStr);
+        cell.bend = bendStr===''? null : bendStr;
+        cell.verified = true;
+        buildLibraryTable(); populateCmpAlloySel(); renderCmpPairList(); render();
+      };
+      rowEl.querySelectorAll('input').forEach(el=>el.addEventListener('change', upd));
+    });
+
+    list.appendChild(details);
+  });
+}
+
+document.getElementById('btnShowNewAlloy').addEventListener('click', ()=>{
+  document.getElementById('newAlloyForm').classList.add('show');
+});
+document.getElementById('btnCancelAlloy').addEventListener('click', ()=>{
+  document.getElementById('newAlloyForm').classList.remove('show');
+});
+document.getElementById('btnCreateAlloy').addEventListener('click', ()=>{
+  const key = document.getElementById('naKey').value.trim();
+  const label = document.getElementById('naLabel').value.trim();
+  if(!key || !label){ alert("Key and label are required."); return; }
+  if(DATA.alloys[key]){ alert("An alloy with this key already exists."); return; }
+  const temperName = document.getElementById('naTemper').value.trim() || "H14";
+  DATA.alloys[key] = {
+    label,
+    standard: document.getElementById('naStandard').value.trim() || "ASTM B209/B209M-21a",
+    chemistry: {
+      Si:document.getElementById('naSi').value||'–', Fe:document.getElementById('naFe').value||'–',
+      Cu:document.getElementById('naCu').value||'–', Mn:document.getElementById('naMn').value||'–',
+      Mg:document.getElementById('naMg').value||'–', Cr:document.getElementById('naCr').value||'–',
+      Zn:document.getElementById('naZn').value||'–', Ti:document.getElementById('naTi').value||'–',
+      each:document.getElementById('naEach').value||'–', total:document.getElementById('naTotal').value||'–',
+      Al:document.getElementById('naAl').value||'remainder'
+    },
+    tempers: { [temperName]: { values: {} } }
+  };
+  ['naKey','naLabel','naSi','naFe','naCu','naMn','naMg','naCr','naZn','naTi','naEach','naTotal','naAl','naTemper'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('naStandard').value = "ASTM B209/B209M-21a";
+  document.getElementById('newAlloyForm').classList.remove('show');
+  populateAll();
+});
+
+/* =====================================================================
+   ADMIN GATE + PERSISTENCE
+   ===================================================================== */
+document.getElementById('btnUnlock').addEventListener('click', ()=>{
+  const val = document.getElementById('adminPass').value;
+  if(val === ADMIN_PASSPHRASE){
+    adminUnlockedFlag = true;
+    document.getElementById('adminGate').classList.add('hidden');
+    document.getElementById('adminUnlocked').classList.remove('hidden');
+    libTag.textContent = "QC master · editable via Admin tab";
+    libTag.classList.add('admin');
+    renderAdminPanels();
+    setMode('admin');
+  } else {
+    alert("Incorrect passphrase.");
+  }
+});
+document.getElementById('btnLockAdmin').addEventListener('click', ()=>{
+  adminUnlockedFlag = false;
+  document.getElementById('adminGate').classList.remove('hidden');
+  document.getElementById('adminUnlocked').classList.add('hidden');
+  document.getElementById('adminPass').value = "";
+  libTag.textContent = "QC master · read only";
+  libTag.classList.remove('admin');
+  setMode('tds');
+});
+
+/* =====================================================================
+   FILEMAKER INTEGRATION BRIDGE
+   When this tool is embedded in a FileMaker WebViewer with "Allow JavaScript
+   to perform FileMaker scripts" enabled, window.FileMaker is injected by
+   FileMaker itself. We detect that and route master-data load/save through
+   FileMaker scripts instead of any other storage. Falls back to Supabase,
+   then Claude's window.storage, then in-memory defaults — whichever is
+   actually available in the environment this file is running in.
+
+   FileMaker-side contract your developer needs to build:
+   - Script "TDS - Get Master Data": query Alloys/Products/Rules tables,
+     build one JSON object shaped like the DATA object below, then run
+     Perform JavaScript in Web Viewer -> receiveMasterDataFromFileMaker(json)
+   - Script "TDS - Save Master Data": receives Get(ScriptParameter) as the
+     same JSON shape and writes it back to the FileMaker tables.
+   - Script "TDS - Save Generated Record": receives a JSON payload (see
+     buildTdsRecordPayload() below) with all TDS fields plus a base64 PDF
+     string, and creates one record in TDS_Generated (Insert from URL with
+     a data: URI into a container field for the PDF).
+   ===================================================================== */
+function fmAvailable(){ return typeof window.FileMaker !== 'undefined'; }
+
+window.receiveMasterDataFromFileMaker = function(jsonString){
+  try{
+    DATA = JSON.parse(jsonString);
+    populateAll();
+    document.getElementById('storageStatus') && (document.getElementById('storageStatus').textContent = "Loaded master data from FileMaker.");
+    mode === 'compare' ? renderCompare() : render();
+  }catch(e){
+    console.error('Failed to parse master data from FileMaker:', e);
+  }
+};
+
+/* =====================================================================
+   SUPABASE INTEGRATION (for the web-hosted deployment, e.g. on Vercel)
+   Fill in SUPABASE_URL and SUPABASE_ANON_KEY from your Supabase project's
+   Settings > API page, then run the SQL schema (see project notes) once
+   in the Supabase SQL editor before this will work.
+
+   The "anon" / "public" key is DESIGNED to be embedded in client-side code
+   like this — it is NOT the service_role secret key. Never put the
+   service_role key here or in any repo; it must stay server-side only.
+   Row Level Security policies on the tables (not this key) are what
+   actually control who can read/write.
+   ===================================================================== */
+const SUPABASE_URL = "";       // e.g. "https://xxxxxxxx.supabase.co"
+const SUPABASE_ANON_KEY = "";  // the "anon public" key from Settings > API
+
+let supabaseClient = null;
+if(SUPABASE_URL && SUPABASE_ANON_KEY && typeof window.supabase !== 'undefined'){
+  try{ supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); }
+  catch(e){ console.error('Supabase client init failed:', e); }
+}
+function supabaseAvailable(){ return supabaseClient !== null; }
+
+async function loadMasterDataFromSupabase(){
+  const { data, error } = await supabaseClient.from('app_state').select('value').eq('key', STORAGE_KEY).maybeSingle();
+  if(error) throw error;
+  return data ? data.value : null;
+}
+async function saveMasterDataToSupabase(){
+  const { error } = await supabaseClient.from('app_state').upsert({ key: STORAGE_KEY, value: DATA, updated_at: new Date().toISOString() });
+  if(error) throw error;
+}
+async function pushGeneratedTdsToSupabase(pdfBase64){
+  const payload = buildTdsRecordPayload();
+  const { error } = await supabaseClient.from('tds_records').insert({
+    ref: payload.ref, customer: payload.customer, alloy: payload.alloy, temper: payload.temper,
+    thickness_mm: payload.thicknessMm, width_mm: payload.widthMm, product: payload.product,
+    units: payload.units, pdf_base64: pdfBase64 || null
+  });
+  if(error) console.error('Supabase TDS record insert failed:', error);
+}
+
+function buildTdsRecordPayload(){
+  return {
+    ref: document.getElementById('refOut')?.textContent || '',
+    date: document.getElementById('dateOut')?.textContent || '',
+    customer: custName.value.trim(),
+    alloy: alloySel.value,
+    temper: temperSel.value,
+    thicknessMm: parseFloat(thickInput.value) || 0,
+    widthMm: parseFloat(widthInput.value) || 0,
+    product: productSel.value === 'Other' ? productOther.value.trim() : productSel.value,
+    units: unitsSel.value
+  };
+}
+
+async function pushGeneratedTdsRecord(pdfBase64){
+  if(fmAvailable()){
+    const payload = { ...buildTdsRecordPayload(), pdfBase64: pdfBase64 || null };
+    window.FileMaker.PerformScript("TDS - Save Generated Record", JSON.stringify(payload));
+    return;
+  }
+  if(supabaseAvailable()){
+    try{ await pushGeneratedTdsToSupabase(pdfBase64); }
+    catch(e){ console.error('Could not save generated TDS record to Supabase:', e); }
+  }
+}
+
+async function saveMasterData(){
+  const status = document.getElementById('storageStatus');
+  if(fmAvailable()){
+    window.FileMaker.PerformScript("TDS - Save Master Data", JSON.stringify(DATA));
+    status.textContent = "Sent to FileMaker for saving.";
+    return;
+  }
+  if(supabaseAvailable()){
+    try{
+      await saveMasterDataToSupabase();
+      status.textContent = "Saved to Supabase — shared with everyone using this deployment.";
+    }catch(e){
+      status.textContent = "Could not save to Supabase: " + e.message;
+    }
+    return;
+  }
+  try{
+    await window.storage.set(STORAGE_KEY, JSON.stringify(DATA), true);
+    status.textContent = "Saved — this master data is now shared with everyone using this tool.";
+  }catch(e){
+    status.textContent = "Could not save to shared storage in this environment. Changes apply to this session only.";
+  }
+}
+document.getElementById('btnSaveMaster').addEventListener('click', saveMasterData);
+document.getElementById('btnResetMaster').addEventListener('click', ()=>{
+  if(!confirm("Reset all master data (products, alloys, rules) to factory defaults? This cannot be undone unless you have saved a copy elsewhere.")) return;
+  DATA = freshDefaults();
+  populateAll();
+  saveMasterData();
+});
+
+async function loadMasterData(){
+  const status = document.getElementById('storageStatus');
+  if(fmAvailable()){
+    status.textContent = "Requesting master data from FileMaker…";
+    window.FileMaker.PerformScript("TDS - Get Master Data", "");
+    populateAll(); // populate with current defaults first; receiveMasterDataFromFileMaker() will refresh once FileMaker replies
+    render();
+    return;
+  }
+  if(supabaseAvailable()){
+    try{
+      const value = await loadMasterDataFromSupabase();
+      if(value){
+        DATA = value;
+        status.textContent = "Loaded shared master data from Supabase.";
+      } else {
+        status.textContent = "No shared master data found in Supabase yet — using factory defaults.";
+      }
+    }catch(e){
+      status.textContent = "Could not reach Supabase (" + e.message + ") — using factory defaults for this session.";
+    }
+    populateAll();
+    render();
+    return;
+  }
+  try{
+    const result = await window.storage.get(STORAGE_KEY, true);
+    if(result && result.value){
+      DATA = JSON.parse(result.value);
+      status.textContent = "Loaded shared master data.";
+    } else {
+      status.textContent = "No shared master data found yet — using factory defaults.";
+    }
+  }catch(e){
+    status.textContent = "Shared storage unavailable in this environment — using factory defaults for this session only.";
+  }
+  populateAll();
+  render();
+}
+
+/* =====================================================================
+   SHARED FIELD LISTENERS
+   ===================================================================== */
+productSel.addEventListener('change', ()=>{
+  productOther.classList.toggle('hidden', productSel.value !== 'Other');
+  productSel.classList.remove('invalid'); productWarn.classList.remove('show');
+  render();
+});
+productOther.addEventListener('input', render);
+alloySel.addEventListener('change', ()=>{ refreshTempers(); render(); });
+[temperSel, thickInput, widthInput, unitsSel, custName, tdsDate, tdsRef].forEach(el=>{
+  el.addEventListener('input', ()=>{ mode==='compare' ? renderCompare() : render(); });
+  el.addEventListener('change', ()=>{ mode==='compare' ? renderCompare() : render(); });
+});
+cmpThickInput.addEventListener('input', renderCompare);
+
+btnOpenLibrary.addEventListener('click', ()=>{
+  libraryModal.classList.remove('hidden');
+  libSearch.value = "";
+  filterLibrary("");
+  libSearch.focus();
+});
+closeLibraryModal.addEventListener('click', ()=> libraryModal.classList.add('hidden'));
+libraryModal.addEventListener('click', (e)=>{ if(e.target === libraryModal) libraryModal.classList.add('hidden'); });
+document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape' && !libraryModal.classList.contains('hidden')) libraryModal.classList.add('hidden'); });
+
+function filterLibrary(query){
+  const q = query.trim().toLowerCase();
+  ['libBody','chemBody'].forEach(id=>{
+    document.getElementById(id).querySelectorAll('tr').forEach(tr=>{
+      const match = !q || tr.textContent.toLowerCase().includes(q);
+      tr.classList.toggle('row-hidden', !match);
+    });
+  });
+}
+libSearch.addEventListener('input', ()=> filterLibrary(libSearch.value));
+
+function openPrintWindow(){
+  // Fallback path, used only if html2canvas/jsPDF failed to load (e.g. no internet access to the CDN).
+  const sheetEl = document.getElementById('sheet');
+  const styleEl = document.querySelector('style');
+  const win = window.open('', '_blank');
+  if(!win){
+    alert("Couldn't generate a PDF directly, and the print-window fallback was blocked as a pop-up. Please allow pop-ups for this page and click Print / Save PDF again.");
+    return;
+  }
+  win.document.write(`<!DOCTYPE html><html><head><title>Alumill TDS</title><meta charset="UTF-8">
+    <style>${styleEl.innerHTML}
+      body{background:#fff;padding:20px;}
+      .sheet{box-shadow:none;max-width:100%;margin:0 auto;}
+    </style></head><body>${sheetEl.outerHTML}</body></html>`);
+  win.document.close();
+  setTimeout(()=>{ win.focus(); win.print(); }, 300);
+}
+
+async function generatePdf(){
+  const btn = document.getElementById('btnPrint');
+  const original = btn.textContent;
+
+  if(typeof html2canvas === 'undefined' || typeof window.jspdf === 'undefined'){
+    // Libraries didn't load (e.g. no internet access to the CDN in this environment) — fall back.
+    openPrintWindow();
+    return;
+  }
+
+  btn.textContent = "Generating PDF…";
+  btn.disabled = true;
+  try{
+    const sheetEl = document.getElementById('sheet');
+    const canvas = await html2canvas(sheetEl, { scale:2, backgroundColor:'#ffffff', useCORS:true });
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation:'portrait', unit:'pt', format:'a4' });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = pageWidth;
+    const imgHeight = canvas.height * imgWidth / canvas.width;
+    const imgData = canvas.toDataURL('image/png');
+
+    let heightLeft = imgHeight;
+    let position = 0;
+    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+    heightLeft -= pageHeight;
+    while(heightLeft > 0){
+      position = heightLeft - imgHeight;
+      pdf.addPage();
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+    }
+
+    const refText = (document.getElementById('refOut')?.textContent || 'TDS').replace(/[^a-zA-Z0-9_-]/g,'_');
+    pdf.save(`Alumill_${refText}.pdf`);
+
+    if(fmAvailable() || supabaseAvailable()){
+      const pdfBase64 = pdf.output('datauristring'); // full "data:application/pdf;filename=...;base64,...." string
+      pushGeneratedTdsRecord(pdfBase64);
+    }
+  } catch(err){
+    console.error('PDF generation failed:', err);
+    alert("PDF generation failed (" + err.message + "). Falling back to the browser print dialog instead — use your browser's 'Save as PDF' destination there.");
+    openPrintWindow();
+  } finally {
+    btn.textContent = original;
+    btn.disabled = false;
+  }
+}
+
+document.getElementById('btnPrint').addEventListener('click', ()=>{
+  if(mode === 'tds' && !productSel.value){
+    productSel.classList.add('invalid'); productWarn.classList.add('show');
+    productSel.scrollIntoView({behavior:'smooth', block:'center'});
+    productSel.focus();
+    const btn = document.getElementById('btnPrint');
+    const original = btn.textContent;
+    btn.textContent = "⚠ Select a Product first";
+    btn.style.background = "var(--danger)"; btn.style.borderColor = "var(--danger)";
+    setTimeout(()=>{ btn.textContent = original; btn.style.background = ""; btn.style.borderColor = ""; }, 2200);
+    return;
+  }
+  generatePdf();
+});
+document.getElementById('btnReset').addEventListener('click', ()=>{
+  custName.value = "M/s Kinetics Group"; tdsDate.value = ""; tdsRef.value = "";
+  productSel.value = ""; productOther.value = ""; productOther.classList.add('hidden');
+  productSel.classList.remove('invalid'); productWarn.classList.remove('show');
+  populateAlloySelect(); temperSel.selectedIndex = 0; thickInput.value = "1.20"; widthInput.value = "1220"; unitsSel.value = "both";
+  mode==='compare' ? renderCompare() : render();
+});
+
+/* =====================================================================
+   INIT
+   ===================================================================== */
+loadMasterData();
+</script>
+</body>
+</html>
