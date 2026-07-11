@@ -261,13 +261,106 @@
     .sheet{box-shadow:none; max-width:100%;}
     .modal-overlay{display:none !important;}
   }
+
+  /* ============ AUTH GATE ============ */
+  .auth-screen{
+    position:fixed; inset:0; z-index:2000; background:var(--paper);
+    display:flex; align-items:center; justify-content:center; padding:24px;
+  }
+  .auth-screen.hidden{display:none !important;}
+  .auth-box{width:100%; max-width:380px; background:#fff; border:1px solid var(--line); border-radius:4px;
+    box-shadow:0 10px 30px rgba(20,29,36,0.14); padding:28px 26px 30px;}
+  .auth-box .brand-mini{margin-bottom:20px;}
+  .auth-box h2{margin:0 0 4px; font-family:'Barlow Semi Condensed',sans-serif; font-size:18px; text-transform:uppercase; letter-spacing:0.4px;}
+  .auth-box p.sub{margin:0 0 18px; font-size:12px; color:#7a7a72; line-height:1.5;}
+  .auth-tabs{display:flex; gap:0; margin-bottom:18px; border:1px solid var(--ink); border-radius:var(--radius); overflow:hidden;}
+  .auth-tabs button{flex:1; background:#fff; color:var(--ink); border:none; border-radius:0; font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.3px; padding:9px 4px; cursor:pointer;}
+  .auth-tabs button + button{border-left:1px solid var(--ink);}
+  .auth-tabs button.active{background:var(--ink); color:#fff;}
+  .auth-msg{font-size:11.5px; padding:8px 10px; border-radius:2px; margin-top:10px; line-height:1.5; display:none;}
+  .auth-msg.show{display:block;}
+  .auth-msg.err{background:#fdecec; color:var(--danger); border:1px solid #f3c9c4;}
+  .auth-msg.ok{background:#eef5ee; color:var(--good); border:1px solid #cfe3cf;}
+  .auth-box button[type=submit]{width:100%; margin-top:14px;}
+  .pending-box{text-align:center;}
+  .pending-box .icon{font-size:34px; margin-bottom:10px;}
+  .pending-box h2{margin-bottom:10px;}
+  .pending-box p{font-size:12.5px; color:#555; line-height:1.6; margin:0 0 18px;}
+  .topbar{display:flex; align-items:center; justify-content:space-between; gap:10px; margin:-22px -22px 18px; padding:10px 22px; background:var(--alu-1); border-bottom:1px solid var(--line); font-size:11.5px;}
+  .topbar .who{color:#555;}
+  .topbar .who b{color:var(--ink);}
+  .topbar button{padding:6px 10px; font-size:11px;}
+  .approvals-panel{border:1px solid var(--brass); border-radius:var(--radius); margin-top:12px;}
+  .approvals-panel > summary{background:#fdf6ec; color:var(--brass); list-style:none; cursor:pointer; padding:9px 12px;
+    font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; font-family:'Barlow Semi Condensed',sans-serif;
+    display:flex; align-items:center; gap:8px;}
+  .approvals-panel > summary::-webkit-details-marker{display:none;}
+  .approvals-panel .badge-count{margin-left:auto; background:var(--danger); color:#fff; border-radius:10px; padding:1px 8px; font-size:10.5px;}
+  .approval-row{display:flex; align-items:center; gap:10px; padding:9px 12px; border-top:1px solid #f1e6d3; font-size:12px;}
+  .approval-row .email{flex:1; font-family:'IBM Plex Mono',monospace;}
+  .approval-row .when{color:#999; font-size:10.5px;}
+  .approval-row button{padding:5px 9px; font-size:10.5px;}
 </style>
 </head>
 <body>
-<div class="app">
+
+<!-- ============ AUTH GATE ============ -->
+<div class="auth-screen hidden" id="authGate">
+  <div class="auth-box">
+    <div class="brand-mini">
+      <div class="mark">ATG</div>
+      <div class="txt"><h1>TDS Generator</h1><p>Alumill Tech Gulf LLC</p></div>
+    </div>
+    <div class="auth-tabs">
+      <button type="button" class="active" id="authTabLogin">Log In</button>
+      <button type="button" id="authTabSignup">Sign Up</button>
+    </div>
+
+    <form id="loginForm">
+      <h2>Log in</h2>
+      <p class="sub">Sign in with an approved account.</p>
+      <label for="loginEmail">Email</label>
+      <input type="email" id="loginEmail" required autocomplete="username">
+      <label for="loginPassword">Password</label>
+      <input type="password" id="loginPassword" required autocomplete="current-password">
+      <button type="submit">Log in</button>
+      <div class="auth-msg" id="loginMsg"></div>
+    </form>
+
+    <form id="signupForm" class="hidden">
+      <h2>Create account</h2>
+      <p class="sub">Requires confirming your email, then approval by the site administrator before you can sign in.</p>
+      <label for="signupEmail">Email</label>
+      <input type="email" id="signupEmail" required autocomplete="username">
+      <label for="signupPassword">Password</label>
+      <input type="password" id="signupPassword" required minlength="6" autocomplete="new-password">
+      <div class="hint">At least 6 characters.</div>
+      <label for="signupPassword2">Confirm password</label>
+      <input type="password" id="signupPassword2" required minlength="6" autocomplete="new-password">
+      <button type="submit">Sign up</button>
+      <div class="auth-msg" id="signupMsg"></div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ PENDING / REJECTED GATE ============ -->
+<div class="auth-screen hidden" id="pendingGate">
+  <div class="auth-box pending-box">
+    <div class="icon" id="pendingIcon">&#9203;</div>
+    <h2 id="pendingTitle">Awaiting approval</h2>
+    <p id="pendingText">Your account has been created and your email confirmed. An administrator needs to approve access before you can use this tool. You'll be able to sign in as soon as that happens — no need to sign up again.</p>
+    <button type="button" class="secondary" id="btnPendingLogout">Log out</button>
+  </div>
+</div>
+
+<div class="app hidden" id="appRoot">
 
   <!-- ============ CONFIGURATOR ============ -->
   <div class="config">
+    <div class="topbar">
+      <span class="who">Signed in as <b id="topbarEmail">—</b></span>
+      <button type="button" class="secondary" id="btnLogout">Log out</button>
+    </div>
     <div class="brand-mini">
       <div class="mark">ATG</div>
       <div class="txt"><h1>TDS Generator</h1><p>Alumill Tech Gulf LLC</p></div>
@@ -341,6 +434,10 @@
 
     <!-- ===== ADMIN MODE ===== -->
     <div id="adminControls" class="hidden">
+      <details class="approvals-panel hidden" id="approvalsPanel" open>
+        <summary>&#128273; User Approvals <span class="badge-count hidden" id="approvalsCount">0</span></summary>
+        <div id="approvalsList"></div>
+      </details>
       <div class="eyebrow"><span class="num">02</span> Master data administration</div>
       <div class="admin-gate" id="adminGate">
         <p style="font-size:12px;margin:0 0 8px;">Admin edits change shared master data used by everyone opening this tool. Enter the admin passphrase to unlock editing.</p>
@@ -1582,6 +1679,156 @@ if(SUPABASE_URL && SUPABASE_ANON_KEY && typeof window.supabase !== 'undefined'){
 }
 function supabaseAvailable(){ return supabaseClient !== null; }
 
+/* =====================================================================
+   AUTH GATE — login / signup / admin-approval
+   Only enforced when Supabase is configured (this deployment). Other
+   integration modes (FileMaker embed, local no-backend testing) have no
+   account system to authenticate against, so they skip straight to the app,
+   same as before this was added.
+   ===================================================================== */
+const SUPER_ADMIN_EMAIL = "nizar.a.mansour@gmail.com";
+const authGate = document.getElementById('authGate');
+const pendingGate = document.getElementById('pendingGate');
+const appRoot = document.getElementById('appRoot');
+const authTabLogin = document.getElementById('authTabLogin');
+const authTabSignup = document.getElementById('authTabSignup');
+const loginForm = document.getElementById('loginForm');
+const signupForm = document.getElementById('signupForm');
+const loginMsg = document.getElementById('loginMsg');
+const signupMsg = document.getElementById('signupMsg');
+
+let currentUser = null;
+let currentProfile = null;
+
+function showMsg(el, text, kind){
+  el.textContent = text;
+  el.className = "auth-msg show " + kind;
+}
+
+authTabLogin.addEventListener('click', ()=>{
+  authTabLogin.classList.add('active'); authTabSignup.classList.remove('active');
+  loginForm.classList.remove('hidden'); signupForm.classList.add('hidden');
+});
+authTabSignup.addEventListener('click', ()=>{
+  authTabSignup.classList.add('active'); authTabLogin.classList.remove('active');
+  signupForm.classList.remove('hidden'); loginForm.classList.add('hidden');
+});
+
+loginForm.addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  loginMsg.className = "auth-msg";
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const btn = loginForm.querySelector('button[type=submit]');
+  btn.disabled = true;
+  const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+  btn.disabled = false;
+  if(error){ showMsg(loginMsg, error.message, 'err'); return; }
+  // onAuthStateChange picks up the new session and re-runs the gate.
+});
+
+signupForm.addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  signupMsg.className = "auth-msg";
+  const email = document.getElementById('signupEmail').value.trim();
+  const password = document.getElementById('signupPassword').value;
+  const password2 = document.getElementById('signupPassword2').value;
+  if(password !== password2){ showMsg(signupMsg, "Passwords don't match.", 'err'); return; }
+  const btn = signupForm.querySelector('button[type=submit]');
+  btn.disabled = true;
+  const { error } = await supabaseClient.auth.signUp({ email, password });
+  btn.disabled = false;
+  if(error){ showMsg(signupMsg, error.message, 'err'); return; }
+  showMsg(signupMsg, "Account created — check your email to confirm it, then wait for admin approval before signing in.", 'ok');
+  signupForm.reset();
+});
+
+async function doLogout(){
+  await supabaseClient.auth.signOut();
+  currentUser = null; currentProfile = null;
+}
+document.getElementById('btnLogout').addEventListener('click', doLogout);
+document.getElementById('btnPendingLogout').addEventListener('click', doLogout);
+
+function isSuperAdmin(user){
+  return !!user && user.email && user.email.toLowerCase() === SUPER_ADMIN_EMAIL;
+}
+
+async function renderApprovals(){
+  const panel = document.getElementById('approvalsPanel');
+  if(!isSuperAdmin(currentUser)){ panel.classList.add('hidden'); return; }
+  panel.classList.remove('hidden');
+  const { data, error } = await supabaseClient.from('profiles').select('id,email,status,created_at').eq('status','pending').order('created_at', { ascending: true });
+  const list = document.getElementById('approvalsList');
+  const countEl = document.getElementById('approvalsCount');
+  list.innerHTML = "";
+  if(error){ list.innerHTML = `<div class="approval-row">Could not load approvals: ${esc(error.message)}</div>`; return; }
+  const pending = data || [];
+  countEl.textContent = pending.length;
+  countEl.classList.toggle('hidden', pending.length === 0);
+  if(!pending.length){
+    list.innerHTML = `<div class="approval-row" style="color:#999;font-style:italic;">No pending signups.</div>`;
+    return;
+  }
+  pending.forEach(p=>{
+    const row = document.createElement('div'); row.className = "approval-row";
+    const when = p.created_at ? new Date(p.created_at).toLocaleDateString() : '';
+    row.innerHTML = `<span class="email">${esc(p.email)}</span><span class="when">${esc(when)}</span>
+      <button type="button" class="approve-btn">Approve</button>
+      <button type="button" class="danger-btn reject-btn">Reject</button>`;
+    row.querySelector('.approve-btn').addEventListener('click', ()=>setApproval(p.id, 'approved'));
+    row.querySelector('.reject-btn').addEventListener('click', ()=>setApproval(p.id, 'rejected'));
+    list.appendChild(row);
+  });
+}
+
+async function setApproval(profileId, status){
+  const { error } = await supabaseClient.from('profiles').update({
+    status, approved_at: new Date().toISOString(), approved_by: currentUser.id
+  }).eq('id', profileId);
+  if(error){ alert('Could not update approval: ' + error.message); return; }
+  renderApprovals();
+}
+
+function showAuthGate(){
+  authGate.classList.remove('hidden');
+  pendingGate.classList.add('hidden');
+  appRoot.classList.add('hidden');
+}
+function showPendingGate(status){
+  authGate.classList.add('hidden');
+  pendingGate.classList.remove('hidden');
+  appRoot.classList.add('hidden');
+  const isRejected = status === 'rejected';
+  document.getElementById('pendingIcon').innerHTML = isRejected ? '&#10060;' : '&#9203;';
+  document.getElementById('pendingTitle').textContent = isRejected ? 'Access denied' : 'Awaiting approval';
+  document.getElementById('pendingText').textContent = isRejected
+    ? "This account's access request was declined by the administrator. Contact " + SUPER_ADMIN_EMAIL + " if you believe this is a mistake."
+    : "Your account has been created and your email confirmed. An administrator needs to approve access before you can use this tool. You'll be able to sign in as soon as that happens — no need to sign up again.";
+}
+function showApp(){
+  authGate.classList.add('hidden');
+  pendingGate.classList.add('hidden');
+  appRoot.classList.remove('hidden');
+  document.getElementById('topbarEmail').textContent = currentUser.email;
+  renderApprovals();
+}
+
+async function runAuthGate(){
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if(!session){ currentUser = null; currentProfile = null; showAuthGate(); return; }
+  currentUser = session.user;
+  const { data: profile, error } = await supabaseClient.from('profiles').select('id,email,status').eq('id', currentUser.id).maybeSingle();
+  if(error || !profile){ currentProfile = null; showPendingGate('pending'); return; }
+  currentProfile = profile;
+  if(profile.status === 'approved'){
+    showApp();
+    if(!window.__appInitialized){ window.__appInitialized = true; loadMasterData(); }
+  } else {
+    showPendingGate(profile.status);
+  }
+}
+
 async function loadMasterDataFromSupabase(){
   const { data, error } = await supabaseClient.from('app_state').select('value').eq('key', STORAGE_KEY).maybeSingle();
   if(error) throw error;
@@ -1829,7 +2076,16 @@ document.getElementById('btnReset').addEventListener('click', ()=>{
 /* =====================================================================
    INIT
    ===================================================================== */
-loadMasterData();
+if(supabaseAvailable()){
+  supabaseClient.auth.onAuthStateChange((_event, _session)=>{ runAuthGate(); });
+  runAuthGate();
+} else {
+  // No Supabase configured in this environment (e.g. FileMaker embed, or a
+  // local file opened with no backend) — there's no account system to
+  // authenticate against, so skip the gate entirely, same as before it existed.
+  appRoot.classList.remove('hidden');
+  loadMasterData();
+}
 </script>
 </body>
 </html>

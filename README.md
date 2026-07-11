@@ -64,11 +64,14 @@ The app checks its environment at load time and picks the first available option
 
 1. In your Supabase project: **SQL Editor → New Query**, paste the contents of
    `supabase-schema.sql`, run it. This creates `app_state` (master data) and
-   `tds_records` (generated TDS log), with permissive RLS policies (see the
-   security note inside that file — worth revisiting before this goes fully public).
-2. In your Supabase project: **Settings → API**, copy the **Project URL** and the
+   `tds_records` (generated TDS log).
+2. Run `auth-schema.sql` next, in the same SQL editor. This adds the `profiles`
+   table and the login-gate RLS policies described in **Account access** below —
+   without it, `supabase-schema.sql`'s tables are still wide open to anyone with
+   the anon key, not just approved signed-in users.
+3. In your Supabase project: **Settings → API**, copy the **Project URL** and the
    **`anon` `public`** key (never the `service_role` key).
-3. In `index.html`, find:
+4. In `index.html`, find:
    ```js
    const SUPABASE_URL = "";
    const SUPABASE_ANON_KEY = "";
@@ -84,19 +87,46 @@ The app checks its environment at load time and picks the first available option
    Vercel serves static HTML automatically.
 3. Vercel gives you a live URL on deploy. Every push to the connected branch redeploys.
 
-## Admin access
+## Account access (Supabase Auth)
 
-The Admin tab is gated by a passphrase constant near the top of the script:
+When Supabase is configured, the entire app sits behind a login screen — nothing
+renders until the visitor is signed in with an **approved** account. This is a real
+access control (enforced by Row Level Security on `app_state`/`tds_records`, not just
+a UI overlay), separate from the Admin-tab passphrase below.
+
+- **Sign up**: email + password, via the Sign Up tab on the login screen. Supabase
+  sends a confirmation email the user must click before they can sign in.
+- **Approval**: every new signup lands with `status = 'pending'` in the `profiles`
+  table (see `auth-schema.sql`) and cannot sign in to see the app until approved.
+  The **super admin** (`nizar.a.mansour@gmail.com`, hardcoded in `index.html` as
+  `SUPER_ADMIN_EMAIL`) sees a "User Approvals" panel at the top of the Admin tab
+  listing every pending signup, with Approve/Reject buttons. The super admin's own
+  signup is auto-approved by a database trigger — otherwise there'd be no one able
+  to approve the first account.
+- There's currently no in-app notification (email/push) to the super admin when a
+  new signup arrives — they need to check the Approvals panel. Adding a real
+  notification would need a transactional email provider (e.g. Resend) wired up via
+  a Supabase Edge Function, which isn't set up.
+- No "forgot password" flow is built yet; a locked-out user currently needs the
+  super admin to reset their password from the Supabase dashboard (Auth > Users).
+- Run `auth-schema.sql` once in the SQL editor (after `supabase-schema.sql`) to set
+  up the `profiles` table, the approval trigger, and the RLS policies that require
+  an approved session.
+
+## Admin access (master-data editing)
+
+Separately from the login gate above, the Admin tab's Products/Rules/Alloys editing
+is gated by a passphrase constant near the top of the script:
 
 ```js
 const ADMIN_PASSPHRASE = "alumill-qc";
 ```
 
-**This is a soft gate only** — it prevents accidental edits, not unauthorized access,
-since anyone with view-source access to the deployed file can read this constant.
-If real access control matters once this is public, that needs to move to Supabase
-Auth (gate the Admin tab behind a signed-in session) rather than a hardcoded string —
-flag this to whoever picks up further development.
+**This is a soft gate only** — it prevents accidental edits by a signed-in user, not
+unauthorized access, since anyone with view-source access to the deployed file can
+read this constant. Real access control for *reaching the app at all* is handled by
+the Supabase Auth login above; this passphrase is just a second speed-bump in front
+of master-data edits specifically, for whoever is already signed in and approved.
 
 ## Data model notes for whoever continues this
 
