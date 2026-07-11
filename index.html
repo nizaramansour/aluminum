@@ -1572,8 +1572,8 @@ window.receiveMasterDataFromFileMaker = function(jsonString){
    Row Level Security policies on the tables (not this key) are what
    actually control who can read/write.
    ===================================================================== */
-const SUPABASE_URL = "";       // e.g. "https://xxxxxxxx.supabase.co"
-const SUPABASE_ANON_KEY = "";  // the "anon public" key from Settings > API
+const SUPABASE_URL = "https://jebumtmyavedpcchsybc.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImplYnVtdG15YXZlZHBjY2hzeWJjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM3NzUxNDIsImV4cCI6MjA5OTM1MTE0Mn0.rmI1wE3VIf4kITJ7FJacuff-1zCu-WAt0Kro6X3Et9I";
 
 let supabaseClient = null;
 if(SUPABASE_URL && SUPABASE_ANON_KEY && typeof window.supabase !== 'undefined'){
