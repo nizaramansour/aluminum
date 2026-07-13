@@ -157,8 +157,14 @@
   .temper-chip-list{display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;}
   .temper-chip{
     font-family:'IBM Plex Mono',monospace; font-size:11px; background:var(--alu-1); border:1px solid var(--alu-3);
-    border-radius:10px; padding:3px 9px; color:var(--steel-dark);
+    border-radius:10px; padding:3px 6px 3px 9px; color:var(--steel-dark);
+    display:inline-flex; align-items:center; gap:5px;
   }
+  .temper-chip .rm{
+    background:none; border:none; padding:0 2px; margin:0; color:var(--danger); font-size:13px; line-height:1;
+    cursor:pointer; font-weight:700; font-family:inherit;
+  }
+  .temper-chip .rm:hover{opacity:0.65;}
 
   .admin-gate{padding:14px; border:1px dashed var(--danger); border-radius:var(--radius); background:#fff8f6;}
   
@@ -1427,7 +1433,7 @@ function renderAlloyTempersAdmin(){
 
     const temperChips = Object.keys(alloy.tempers).map(tk=>{
       const note = alloy.tempers[tk].equivNote;
-      return `<span class="temper-chip"${note?` title="${esc(note)}"`:''}>${esc(tk)}${note?' ⓘ':''}</span>`;
+      return `<span class="temper-chip"${note?` title="${esc(note)}"`:''}>${esc(tk)}${note?' ⓘ':''}<button type="button" class="rm" data-rm-temper="${esc(tk)}" title="Remove temper ${esc(tk)}" aria-label="Remove temper ${esc(tk)}">&times;</button></span>`;
     }).join('');
 
     details.innerHTML = `
@@ -1471,7 +1477,20 @@ function renderAlloyTempersAdmin(){
       if(!name) return;
       if(alloy.tempers[name]){ alert("Temper already exists."); return; }
       alloy.tempers[name] = { values: {} };
-      renderAlloyAdmin(); buildLibraryTable(); populateCmpAlloySel(); renderCmpPairList(); render();
+      renderAlloyAdmin(); buildLibraryTable(); populateAlloySelect(); populateCmpAlloySel(); renderCmpPairList(); render();
+    });
+    details.querySelectorAll('[data-rm-temper]').forEach(btn=>{
+      btn.addEventListener('click', (ev)=>{
+        ev.stopPropagation();
+        const tk = btn.dataset.rmTemper;
+        const remaining = Object.keys(alloy.tempers).length;
+        const msg = remaining <= 1
+          ? `Remove temper "${tk}"? It's the only temper left on ${alloy.label} — removing it leaves this alloy with nothing produced until you add another temper.`
+          : `Remove temper "${tk}" from ${alloy.label}? This deletes its mechanical property values across all thickness bands (e.g. use this when a temper/series genuinely isn't produced, like AA5005's H3x series). Any existing rule referencing this exact temper will simply stop matching — it isn't deleted, just inert.`;
+        if(!confirm(msg)) return;
+        delete alloy.tempers[tk];
+        renderAlloyAdmin(); buildLibraryTable(); populateAlloySelect(); populateCmpAlloySel(); renderCmpPairList(); render();
+      });
     });
 
     list.appendChild(details);
