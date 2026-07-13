@@ -1463,6 +1463,14 @@ function renderAlloyTempersAdmin(){
           <span class="field-label">Tempers</span>
           <div class="temper-chip-list">${temperChips}</div>
           <button type="button" class="ghost" data-add-temper="${esc(ak)}" style="margin-top:8px;">+ Add temper</button>
+          <div class="newtemper-form hidden" style="margin-top:8px;display:flex;gap:6px;align-items:flex-start;">
+            <div style="flex:1;">
+              <input type="text" class="newtemper-input" placeholder="e.g. H16" style="padding:6px 8px;font-size:12px;">
+              <div class="field-warn newtemper-err" style="margin-top:4px;"></div>
+            </div>
+            <button type="button" class="newtemper-save" style="padding:6px 10px;font-size:11.5px;">Add</button>
+            <button type="button" class="secondary newtemper-cancel" style="padding:6px 10px;font-size:11.5px;">Cancel</button>
+          </div>
         </div>
       </div>`;
 
@@ -1472,12 +1480,35 @@ function renderAlloyTempersAdmin(){
     Object.keys(cf).forEach(k=>{
       details.querySelector(cf[k]).addEventListener('change', e=>{ alloy.chemistry[keyMap[k]] = e.target.value; populateAll(); });
     });
-    details.querySelector('[data-add-temper]').addEventListener('click', (e)=>{
-      const name = prompt("New temper name (e.g. H16):");
-      if(!name) return;
-      if(alloy.tempers[name]){ alert("Temper already exists."); return; }
+    // In-page form instead of window.prompt() — native dialogs are also the first
+    // thing a browser lets a user permanently silence ("Prevent this page from
+    // creating additional dialogs"), after which prompt()/confirm() calls just
+    // return null/false with no visible dialog at all — the button would look
+    // completely dead with no way to tell why. This form can't be silenced.
+    const newTemperForm = details.querySelector('.newtemper-form');
+    const newTemperInput = details.querySelector('.newtemper-input');
+    const newTemperErr = details.querySelector('.newtemper-err');
+    const closeNewTemperForm = ()=>{
+      newTemperForm.classList.add('hidden');
+      newTemperInput.value = "";
+      newTemperErr.classList.remove('show');
+    };
+    details.querySelector('[data-add-temper]').addEventListener('click', ()=>{
+      newTemperForm.classList.remove('hidden');
+      newTemperInput.focus();
+    });
+    details.querySelector('.newtemper-cancel').addEventListener('click', closeNewTemperForm);
+    const saveNewTemper = ()=>{
+      const name = newTemperInput.value.trim();
+      if(!name){ newTemperErr.textContent = "Enter a temper name first."; newTemperErr.classList.add('show'); return; }
+      if(alloy.tempers[name]){ newTemperErr.textContent = "Temper already exists."; newTemperErr.classList.add('show'); return; }
       alloy.tempers[name] = { values: {} };
       renderAlloyAdmin(); buildLibraryTable(); populateAlloySelect(); populateCmpAlloySel(); renderCmpPairList(); render();
+    };
+    details.querySelector('.newtemper-save').addEventListener('click', saveNewTemper);
+    newTemperInput.addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter'){ e.preventDefault(); saveNewTemper(); }
+      else if(e.key === 'Escape'){ closeNewTemperForm(); }
     });
     details.querySelectorAll('[data-rm-temper]').forEach(btn=>{
       btn.addEventListener('click', (ev)=>{
