@@ -812,15 +812,10 @@ const DEFAULT_ALLOYS = {
       "H12":{ values:{ R1:bv(), R2:v(124,166,97,4,null), R3:v(124,166,97,4,null), R4:v(124,166,97,4,null), R5:v(124,166,97,4,null), R6:v(124,166,97,4,null) } },
       "H14":{ values:{ R1:bv(), R2:v(145,186,117,1,null), R3:v(145,186,117,1,null), R4:v(145,186,117,2,null), R5:v(145,186,117,3,null), R6:bv() } },
       "H16":{ values:{ R1:v(165,207,138,2,null), R2:v(165,207,138,2,null), R3:v(165,207,138,2,null), R4:v(165,207,138,2,null), R5:v(165,207,138,2,null), R6:v(165,207,138,2,null) } },
-      "H18":{ values:{ R1:bv(), R2:v(186,null,null,null,null,false), R3:v(186,null,null,null,null,false), R4:v(186,null,null,null,null,false), R5:v(186,null,null,null,null,false), R6:bv() } },
-      "H32":{ values:{ R1:bv(), R2:v(117,159,83,5,null), R3:v(117,159,83,5,null), R4:v(117,159,83,5,null), R5:v(117,159,83,5,null), R6:v(117,159,83,5,null) } },
-      "H34":{ values:{ R1:v(138,179,103,4,null), R2:v(138,179,103,4,null), R3:v(138,179,103,4,null), R4:v(138,179,103,4,null), R5:v(138,179,103,4,null), R6:v(138,179,103,4,null) } },
-      "H36":{ values:{ R1:bv(), R2:bv(), R3:bv(), R4:bv(), R5:bv(), R6:bv() } },
-      "H38":{ values:{ R1:bv(), R2:bv(), R3:bv(), R4:bv(), R5:bv(), R6:bv() } },
-      "H22":{ equivNote:"For this alloy H22 pairs with H32, not H12 (per source ASTM table)", values:{ R1:bv(), R2:v(117,159,83,5,null), R3:v(117,159,83,5,null), R4:v(117,159,83,5,null), R5:v(117,159,83,5,null), R6:v(117,159,83,5,null) } },
-      "H24":{ equivNote:"For this alloy H24 pairs with H34, not H14 (per source ASTM table)", values:{ R1:v(138,179,103,4,null), R2:v(138,179,103,4,null), R3:v(138,179,103,4,null), R4:v(138,179,103,4,null), R5:v(138,179,103,4,null), R6:v(138,179,103,4,null) } },
-      "H26":{ equivNote:"For this alloy H26 pairs with H36, not H16 — H36 itself not yet verified", values:{ R1:bv(), R2:bv(), R3:bv(), R4:bv(), R5:bv(), R6:bv() } },
-      "H28":{ equivNote:"For this alloy H28 pairs with H38, not H18 — H38 itself not yet verified", values:{ R1:bv(), R2:bv(), R3:bv(), R4:bv(), R5:bv(), R6:bv() } }
+      "H18":{ values:{ R1:bv(), R2:v(186,null,null,null,null,false), R3:v(186,null,null,null,null,false), R4:v(186,null,null,null,null,false), R5:v(186,null,null,null,null,false), R6:bv() } }
+      // H32/H34/H36/H38 (and H22/H24/H26/H28, which for this alloy specifically are
+      // ASTM Note C aliases of the H3x series, not H1x) intentionally omitted — this
+      // alloy's H3x series is not produced. See git history if that changes.
     }
   }
 };
