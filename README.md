@@ -37,7 +37,9 @@ it's deployed (see **Integration modes** below).
 ```
 index.html            the entire app
 supabase-schema.sql    run this once in Supabase's SQL editor before deploying
-README.md             this file
+auth-schema.sql        run next — login gate, profiles table, admin-approval trigger
+workflow-schema.sql    run last — departments + submit/verify/print request workflow
+README.md              this file
 ```
 
 ## Integration modes (auto-detected, in priority order)
@@ -69,9 +71,13 @@ The app checks its environment at load time and picks the first available option
    table and the login-gate RLS policies described in **Account access** below —
    without it, `supabase-schema.sql`'s tables are still wide open to anyone with
    the anon key, not just approved signed-in users.
-3. In your Supabase project: **Settings → API**, copy the **Project URL** and the
+3. Run `workflow-schema.sql` next. This adds the `department` column to `profiles`,
+   creates `tds_requests` (the submit/verify/print request table), and tightens
+   `app_state` so only `qc`/`admin` departments can write master data — see
+   **Departments and the submit → verify → print workflow** below.
+4. In your Supabase project: **Settings → API**, copy the **Project URL** and the
    **`anon` `public`** key (never the `service_role` key).
-4. In `index.html`, find:
+5. In `index.html`, find:
    ```js
    const SUPABASE_URL = "";
    const SUPABASE_ANON_KEY = "";
@@ -113,20 +119,33 @@ a UI overlay), separate from the Admin-tab passphrase below.
   up the `profiles` table, the approval trigger, and the RLS policies that require
   an approved session.
 
-## Admin access (master-data editing)
+## Departments and the submit → verify → print workflow
 
-Separately from the login gate above, the Admin tab's Products/Rules/Alloys editing
-is gated by a passphrase constant near the top of the script:
+Every approved account has a **department**: `sales`, `qc`, `production`, or `admin`.
+New signups default to `sales`; the super admin (`nizar.a.mansour@gmail.com`) is
+auto-set to `admin`. The super admin assigns/changes everyone else's department from
+the dropdown in Admin → User Approvals & Departments. This is real access control
+enforced by Supabase RLS (see `workflow-schema.sql`), not just a UI toggle.
 
-```js
-const ADMIN_PASSPHRASE = "alumill-qc";
-```
-
-**This is a soft gate only** — it prevents accidental edits by a signed-in user, not
-unauthorized access, since anyone with view-source access to the deployed file can
-read this constant. Real access control for *reaching the app at all* is handled by
-the Supabase Auth login above; this passphrase is just a second speed-bump in front
-of master-data edits specifically, for whoever is already signed in and approved.
+- **Master data editing** (Products, Conditions & Remarks Rules, Alloy Properties in
+  the Admin tab) is restricted to `qc` and `admin`. Anyone else sees a read-only
+  notice instead of the editors — both in the UI (`canEditMasterData()`) and at the
+  database level (`app_state` RLS only allows insert/update from qc/admin).
+- **TDS Generator no longer prints directly.** Filling the form and clicking
+  "Submit for Verification" freezes the current form state — resolved alloy/temper
+  properties, thickness band values, tolerances, and matching remarks — into a
+  `tds_requests` row with `status = 'pending'`. That frozen `snapshot` is what
+  ever gets printed later, so a subsequent master-data edit can't retroactively
+  change an already-submitted sheet.
+- **Verify Requests tab** (visible to `qc`/`production`/`admin` only) lists pending
+  requests from everyone and lets a reviewer Verify or Reject (with a reason) —
+  this only touches the request's status, never master data.
+- **My Requests tab** lists the signed-in user's own submissions with status. A
+  verified request shows a "Print / Save PDF" button that paints and exports the
+  frozen `snapshot`, not live data, and records `printed_at`/`pdf_base64` back onto
+  the request row.
+- The **Comparator tab is unaffected** — it still prints directly, since it's a
+  side-by-side reference sheet rather than a certified TDS tied to an order.
 
 ## Data model notes for whoever continues this
 

@@ -92,10 +92,12 @@
 
   .disclaimer{margin-top:18px; font-size:10.5px; line-height:1.5; color:#7a7a72; border-left:3px solid var(--brass-light); padding:8px 10px; background:#fdfaf4;}
 
-  .tabs{display:flex; gap:0; margin:18px 0 4px; border:1px solid var(--ink); border-radius:var(--radius); overflow:hidden;}
-  .tab{flex:1; background:#fff; color:var(--ink); border:none; border-radius:0; font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.3px; padding:9px 4px; cursor:pointer;}
+  .tabs{display:flex; flex-wrap:wrap; gap:0; margin:18px 0 4px; border:1px solid var(--ink); border-radius:var(--radius); overflow:hidden;}
+  .tab{flex:1 1 33%; min-width:0; background:#fff; color:var(--ink); border:none; border-top:1px solid var(--ink); border-radius:0; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.2px; padding:9px 3px; cursor:pointer;}
+  .tab:nth-child(-n+3){border-top:none;}
   .tab + .tab{border-left:1px solid var(--ink);}
   .tab.active{background:var(--ink); color:#fff;}
+  .tab.hidden{display:none !important;}
   .tab.admin-tab.active{background:var(--danger); border-color:var(--danger);}
   .hidden{display:none !important;}
 
@@ -170,8 +172,6 @@
   }
   .temper-chip .rm:hover{opacity:0.65;}
 
-  .admin-gate{padding:14px; border:1px dashed var(--danger); border-radius:var(--radius); background:#fff8f6;}
-  
   .admin-panel{border:1px solid var(--danger); border-radius:var(--radius); margin-top:12px;}
   .admin-panel > summary{
     background:#fdecec; color:var(--danger); list-style:none; cursor:pointer; padding:9px 12px;
@@ -380,7 +380,9 @@
     <div class="tabs">
       <button type="button" class="tab active" id="tabTds">TDS Generator</button>
       <button type="button" class="tab" id="tabCompare">Comparator</button>
-      <button type="button" class="tab admin-tab" id="tabAdmin">Admin</button>
+      <button type="button" class="tab" id="tabMyRequests">My Requests</button>
+      <button type="button" class="tab hidden" id="tabVerify">Verify Requests</button>
+      <button type="button" class="tab admin-tab hidden" id="tabAdmin">Admin</button>
     </div>
 
     <!-- ===== TDS MODE ===== -->
@@ -435,30 +437,40 @@
       </div>
     </div>
 
+    <!-- ===== MY REQUESTS MODE ===== -->
+    <div id="myRequestsControls" class="hidden">
+      <div class="eyebrow"><span class="num">02</span> Your submitted TDS requests</div>
+      <p class="hint">Every TDS you submit is listed here with its status. Once QC or Production verifies it, a Print / Save PDF button appears — using the exact data as it was at submission time, even if master data changes later.</p>
+      <button type="button" class="ghost" id="btnRefreshMyRequests" style="margin-top:8px;width:100%;">Refresh</button>
+    </div>
+
+    <!-- ===== VERIFY MODE ===== -->
+    <div id="verifyControls" class="hidden">
+      <div class="eyebrow"><span class="num">02</span> Pending TDS requests</div>
+      <p class="hint">Requests submitted by anyone, waiting on QC or Production sign-off before the submitter can print. Approving or rejecting here doesn't touch any master data.</p>
+      <button type="button" class="ghost" id="btnRefreshVerifyQueue" style="margin-top:8px;width:100%;">Refresh</button>
+    </div>
+
     <!-- ===== ADMIN MODE ===== -->
     <div id="adminControls" class="hidden">
       <details class="approvals-panel hidden" id="approvalsPanel" open>
-        <summary>&#128273; User Approvals <span class="badge-count hidden" id="approvalsCount">0</span></summary>
+        <summary>&#128273; User Approvals &amp; Departments <span class="badge-count hidden" id="approvalsCount">0</span></summary>
         <div id="approvalsList"></div>
       </details>
       <div class="eyebrow"><span class="num">02</span> Master data administration</div>
-      <div class="admin-gate" id="adminGate">
-        <p style="font-size:12px;margin:0 0 8px;">Admin edits change shared master data used by everyone opening this tool. Enter the admin passphrase to unlock editing.</p>
-        <input type="password" id="adminPass" placeholder="Admin passphrase">
-        <button type="button" style="margin-top:8px;" id="btnUnlock">Unlock admin editing</button>
-        <p class="hint">This is a soft gate only — it prevents accidental edits, not a security control. Anyone with this file's source can bypass it.</p>
+      <div id="adminNoAccess" class="hidden">
+        <p class="hint">Products, Rules, and Alloy Properties can only be edited by QC. Your department: <strong id="adminDeptLabel"></strong>.</p>
       </div>
       <div id="adminUnlocked" class="hidden">
         <div class="status-line" id="storageStatus">Checking storage…</div>
-        <p class="hint">Editing controls are open in the main panel, where there's room to work — Products, Rules, and Alloys/Bands sections.</p>
+        <p class="hint">Editing controls are open in the main panel, where there's room to work — Products, Rules, and Alloy Properties sections.</p>
         <button type="button" class="secondary" id="btnSaveMaster" style="margin-top:12px;width:100%;">Save master data</button>
         <button type="button" class="ghost" id="btnResetMaster" style="margin-top:8px;width:100%;">Reset to factory defaults</button>
-        <button type="button" class="secondary" id="btnLockAdmin" style="margin-top:8px;width:100%;">Exit admin mode</button>
       </div>
     </div>
 
     <div class="btnbar">
-      <button id="btnPrint">Print / Save PDF</button>
+      <button id="btnPrint">Submit for Verification</button>
       <button class="secondary" id="btnReset" type="button">Reset</button>
     </div>
 
@@ -597,6 +609,30 @@
       <div class="foot-note" id="footNote"></div>
       <div class="footer-strip"><span>Alumill Tech Gulf LLC — Quality Assurance</span><span id="footRef">—</span></div>
     </div>
+
+    <div class="admin-main-panel hidden" id="myRequestsPanel">
+      <div class="admin-main-header">
+        <h2>My Requests</h2>
+        <p>TDS requests you've submitted. A verified request shows a Print / Save PDF button that uses the data exactly as it was at submission time.</p>
+      </div>
+      <table class="libtable" id="myRequestsTable">
+        <thead><tr><th>Ref</th><th>Submitted</th><th>Alloy / Temper</th><th>Thickness</th><th>Customer</th><th>Status</th><th></th></tr></thead>
+        <tbody id="myRequestsBody"></tbody>
+      </table>
+      <p class="hint" id="myRequestsEmpty">No requests yet — submit one from the TDS Generator tab.</p>
+    </div>
+
+    <div class="admin-main-panel hidden" id="verifyRequestsPanel">
+      <div class="admin-main-header">
+        <h2>Verify Requests</h2>
+        <p>Pending TDS requests awaiting QC/Production sign-off before the submitter can print.</p>
+      </div>
+      <table class="libtable" id="verifyRequestsTable">
+        <thead><tr><th>Ref</th><th>Submitted</th><th>By</th><th>Alloy / Temper</th><th>Thickness</th><th>Customer</th><th></th></tr></thead>
+        <tbody id="verifyRequestsBody"></tbody>
+      </table>
+      <p class="hint" id="verifyRequestsEmpty">Nothing pending right now.</p>
+    </div>
   </div>
 </div>
 
@@ -631,7 +667,6 @@
 /* =====================================================================
    MASTER DATA
    ===================================================================== */
-const ADMIN_PASSPHRASE = "alumill-qc"; // soft gate only — not real security
 const STORAGE_KEY = "alumill-master-data-v1";
 
 // mm <-> in helper
@@ -959,7 +994,6 @@ function migrateDataToFreeformBands(data){
 }
 
 let DATA = migrateDataToFreeformBands(freshDefaults());
-let adminUnlockedFlag = false;
 
 /* =====================================================================
    LOOKUP HELPERS
@@ -1047,9 +1081,13 @@ const productOther = document.getElementById('productOther');
 const productWarn = document.getElementById('productWarn');
 const tabTds = document.getElementById('tabTds');
 const tabCompare = document.getElementById('tabCompare');
+const tabMyRequests = document.getElementById('tabMyRequests');
+const tabVerify = document.getElementById('tabVerify');
 const tabAdmin = document.getElementById('tabAdmin');
 const tdsControls = document.getElementById('tdsControls');
 const compareControls = document.getElementById('compareControls');
+const myRequestsControls = document.getElementById('myRequestsControls');
+const verifyControls = document.getElementById('verifyControls');
 const adminControls = document.getElementById('adminControls');
 const tdsBody = document.getElementById('tdsBody');
 const compareBody = document.getElementById('compareBody');
@@ -1113,7 +1151,7 @@ function populateAll(){
   populateAlloySelect();
   buildLibraryTable();
   populateCmpAlloySel(); renderCmpPairList();
-  if(adminUnlockedFlag) renderAdminPanels();
+  if(canEditMasterData()) renderAdminPanels();
 }
 
 /* =====================================================================
@@ -1156,10 +1194,15 @@ function buildLibraryTable(){
 /* =====================================================================
    TDS RENDER
    ===================================================================== */
-function render(){
+// Pure compute: resolves live form state (plus current master DATA) into a
+// plain, JSON-serializable object with no DOM refs and no live DATA refs — this
+// is what gets frozen into tds_requests.snapshot so a later master-data edit can
+// never retroactively change an already-submitted/verified/printed sheet.
+// paintTdsSheet() below is the only place that turns this into a screenful.
+function buildTdsSnapshot(){
   const alloyKey = alloySel.value;
   const alloy = DATA.alloys[alloyKey];
-  if(!alloy) return;
+  if(!alloy) return null;
   const temperKey = temperSel.value;
   const thicknessMM = parseFloat(thickInput.value) || 0;
   const widthMM = parseFloat(widthInput.value) || 0;
@@ -1183,17 +1226,6 @@ function render(){
 
   const unitsMode = unitsSel.value; // 'both' | 'metric' | 'imperial'
   const fmtDual = (impStr, metStr) => unitsMode==='metric' ? metStr : unitsMode==='imperial' ? impStr : `${impStr} / ${metStr}`;
-
-  document.getElementById('docTitleAlloy').textContent = `Technical Data Sheet — Aluminium Coil Alloy ${alloy.label}`;
-  document.getElementById('refOut').textContent = ref;
-  document.getElementById('dateOut').textContent = date;
-  document.getElementById('custOut').textContent = cust;
-  document.getElementById('alloyOut').textContent = `${alloy.label} / ${temperKey}`;
-  document.getElementById('thickOut').textContent = fmtDual(`${mm2in(thicknessMM).toFixed(4)}"`, `${thicknessMM.toFixed(2)} mm`);
-  document.getElementById('widthOut').textContent = fmtDual(`${mm2in(widthMM).toFixed(2)}"`, `${widthMM.toFixed(0)} mm`);
-  document.getElementById('footRef').textContent = `${ref} · ${date}`;
-  document.getElementById('sealOut').innerHTML = `CERTIFIED<br>${esc(alloy.label)}<br>${esc(temperKey)}`;
-  footNote.textContent = TDS_FOOT;
 
   const rangeWarn = band && band.outOfRange ? " ⚠ outside verified band — confirm with QC" : "";
   // A band can hold real numbers yet still be flagged verified:false (a best-available
@@ -1240,6 +1272,36 @@ function render(){
     ["Packing", FIXED.packing, FIXED.packing]
   ];
 
+  return {
+    docTitle: `Technical Data Sheet — Aluminium Coil Alloy ${alloy.label}`,
+    ref, date, cust,
+    alloyLabel: alloy.label, temperKey,
+    thicknessMM, widthMM, unitsMode,
+    thickOut: fmtDual(`${mm2in(thicknessMM).toFixed(4)}"`, `${thicknessMM.toFixed(2)} mm`),
+    widthOut: fmtDual(`${mm2in(widthMM).toFixed(2)}"`, `${widthMM.toFixed(0)} mm`),
+    footNote: TDS_FOOT,
+    rows
+  };
+}
+
+// Pure paint: takes either a freshly-built snapshot or a frozen historical one
+// (loaded from tds_requests.snapshot) and paints it into the .sheet DOM — no
+// lookups against live DATA, so a verified/printed request always shows exactly
+// what it showed at submission time regardless of later master-data edits.
+function paintTdsSheet(snap){
+  if(!snap) return;
+  document.getElementById('docTitleAlloy').textContent = snap.docTitle;
+  document.getElementById('refOut').textContent = snap.ref;
+  document.getElementById('dateOut').textContent = snap.date;
+  document.getElementById('custOut').textContent = snap.cust;
+  document.getElementById('alloyOut').textContent = `${snap.alloyLabel} / ${snap.temperKey}`;
+  document.getElementById('thickOut').textContent = snap.thickOut;
+  document.getElementById('widthOut').textContent = snap.widthOut;
+  document.getElementById('footRef').textContent = `${snap.ref} · ${snap.date}`;
+  document.getElementById('sealOut').innerHTML = `CERTIFIED<br>${esc(snap.alloyLabel)}<br>${esc(snap.temperKey)}`;
+  footNote.textContent = snap.footNote;
+
+  const unitsMode = snap.unitsMode;
   const specHead = document.getElementById('specHead');
   if(unitsMode==='both'){
     specHead.innerHTML = '<tr><th style="width:34px;">#</th><th>Specification</th><th>Imperial dimension</th><th>Metric dimension</th></tr>';
@@ -1251,7 +1313,7 @@ function render(){
 
   const body = document.getElementById('specBody');
   body.innerHTML = "";
-  rows.forEach((r,i)=>{
+  snap.rows.forEach((r,i)=>{
     const tr = document.createElement('tr');
     if(r[3]) tr.className = "locked";
     if(r[4]) tr.className = "remark";
@@ -1262,6 +1324,10 @@ function render(){
     tr.innerHTML = `<td class="snum">${i+1}</td><td class="label">${esc(r[0])}</td>${valueCells}`;
     body.appendChild(tr);
   });
+}
+
+function render(){
+  paintTdsSheet(buildTdsSnapshot());
 }
 
 /* =====================================================================
@@ -1379,20 +1445,38 @@ function setMode(newMode){
   mode = newMode;
   tabTds.classList.toggle('active', mode==='tds');
   tabCompare.classList.toggle('active', mode==='compare');
+  tabMyRequests.classList.toggle('active', mode==='myrequests');
+  tabVerify.classList.toggle('active', mode==='verify');
   tabAdmin.classList.toggle('active', mode==='admin');
   tdsControls.classList.toggle('hidden', mode!=='tds');
   compareControls.classList.toggle('hidden', mode!=='compare');
+  myRequestsControls.classList.toggle('hidden', mode!=='myrequests');
+  verifyControls.classList.toggle('hidden', mode!=='verify');
   adminControls.classList.toggle('hidden', mode!=='admin');
-  tdsBody.classList.toggle('hidden', mode!=='tds');
-  compareBody.classList.toggle('hidden', mode!=='compare');
-  document.getElementById('sheet').classList.toggle('hidden', mode==='admin' && adminUnlockedFlag);
-  document.getElementById('adminMainPanel').classList.toggle('hidden', !(mode==='admin' && adminUnlockedFlag));
+  const adminUnlocked = mode==='admin' && canEditMasterData();
+  document.getElementById('sheet').classList.toggle('hidden', mode!=='tds' && mode!=='compare');
+  document.getElementById('adminMainPanel').classList.toggle('hidden', !adminUnlocked);
+  document.getElementById('myRequestsPanel').classList.toggle('hidden', mode!=='myrequests');
+  document.getElementById('verifyRequestsPanel').classList.toggle('hidden', mode!=='verify');
+  document.getElementById('adminNoAccess').classList.toggle('hidden', !(mode==='admin' && !canEditMasterData()));
+  document.getElementById('adminUnlocked').classList.toggle('hidden', !adminUnlocked);
+  if(mode==='admin' && !canEditMasterData()){
+    document.getElementById('adminDeptLabel').textContent = currentProfile ? currentProfile.department : '—';
+  }
+  document.querySelector('.btnbar').classList.toggle('hidden', mode!=='tds' && mode!=='compare');
+  document.getElementById('btnPrint').textContent = mode==='tds' ? 'Submit for Verification' : 'Print / Save PDF';
   if(mode==='tds'){ tdsRef.value=""; render(); }
   else if(mode==='compare'){ tdsRef.value=""; renderCompare(); }
+  else if(mode==='myrequests'){ loadMyRequests(); }
+  else if(mode==='verify'){ loadVerifyQueue(); }
 }
 tabTds.addEventListener('click', ()=>setMode('tds'));
 tabCompare.addEventListener('click', ()=>setMode('compare'));
+tabMyRequests.addEventListener('click', ()=>setMode('myrequests'));
+tabVerify.addEventListener('click', ()=>setMode('verify'));
 tabAdmin.addEventListener('click', ()=>setMode('admin'));
+document.getElementById('btnRefreshMyRequests').addEventListener('click', loadMyRequests);
+document.getElementById('btnRefreshVerifyQueue').addEventListener('click', loadVerifyQueue);
 
 /* =====================================================================
    ADMIN: PRODUCTS, RULES, ALLOYS EDITORS
@@ -1800,31 +1884,133 @@ document.getElementById('btnCreateAlloy').addEventListener('click', ()=>{
 });
 
 /* =====================================================================
-   ADMIN GATE + PERSISTENCE
+   ADMIN ACCESS + PERSISTENCE
+   Access is department-based (see canEditMasterData()), not a passphrase —
+   set once the signed-in user's profile/department is known.
    ===================================================================== */
-document.getElementById('btnUnlock').addEventListener('click', ()=>{
-  const val = document.getElementById('adminPass').value;
-  if(val === ADMIN_PASSPHRASE){
-    adminUnlockedFlag = true;
-    document.getElementById('adminGate').classList.add('hidden');
-    document.getElementById('adminUnlocked').classList.remove('hidden');
+function refreshAdminAccessUi(){
+  if(canEditMasterData()){
     libTag.textContent = "QC master · editable via Admin tab";
     libTag.classList.add('admin');
     renderAdminPanels();
-    setMode('admin');
   } else {
-    alert("Incorrect passphrase.");
+    libTag.textContent = "QC master · read only";
+    libTag.classList.remove('admin');
   }
-});
-document.getElementById('btnLockAdmin').addEventListener('click', ()=>{
-  adminUnlockedFlag = false;
-  document.getElementById('adminGate').classList.remove('hidden');
-  document.getElementById('adminUnlocked').classList.add('hidden');
-  document.getElementById('adminPass').value = "";
-  libTag.textContent = "QC master · read only";
-  libTag.classList.remove('admin');
-  setMode('tds');
-});
+}
+
+/* =====================================================================
+   TDS REQUEST WORKFLOW — My Requests / Verify Requests
+   Sales submits (see submitTdsRequest() above), QC/Production/Admin verify or
+   reject, and only a verified request can be printed — from here, not from the
+   TDS Generator tab, and always from the frozen snapshot stored at submission
+   time so a later master-data edit can't change an already-verified sheet.
+   ===================================================================== */
+const STATUS_BADGE = { pending: '⏳ Pending', verified: '✓ Verified', rejected: '✕ Rejected' };
+
+async function loadMyRequests(){
+  const body = document.getElementById('myRequestsBody');
+  const empty = document.getElementById('myRequestsEmpty');
+  body.innerHTML = "";
+  if(!supabaseAvailable() || !currentUser){
+    empty.textContent = "Requires the Supabase-backed deployment, signed in.";
+    empty.classList.remove('hidden');
+    return;
+  }
+  const { data, error } = await supabaseClient.from('tds_requests')
+    .select('id,created_at,ref,customer,alloy_label,temper,thickness_mm,status,rejection_reason,snapshot,printed_at')
+    .eq('created_by', currentUser.id)
+    .order('created_at', { ascending: false });
+  if(error){
+    empty.textContent = "Could not load your requests: " + error.message;
+    empty.classList.remove('hidden');
+    return;
+  }
+  const rows = data || [];
+  empty.classList.toggle('hidden', rows.length > 0);
+  if(!rows.length){ empty.textContent = "No requests yet — submit one from the TDS Generator tab."; return; }
+  rows.forEach(r=>{
+    const tr = document.createElement('tr');
+    const when = r.created_at ? new Date(r.created_at).toLocaleString() : '';
+    const statusTxt = STATUS_BADGE[r.status] || r.status;
+    const statusExtra = r.status==='rejected' && r.rejection_reason ? ` — ${esc(r.rejection_reason)}` : '';
+    tr.innerHTML = `<td>${esc(r.ref||'')}</td><td>${esc(when)}</td><td>${esc(r.alloy_label||'')} / ${esc(r.temper||'')}</td>
+      <td>${r.thickness_mm!=null ? r.thickness_mm+' mm' : ''}</td><td>${esc(r.customer||'')}</td>
+      <td>${statusTxt}${statusExtra}</td><td></td>`;
+    if(r.status==='verified'){
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = r.printed_at ? 'Print / Save PDF again' : 'Print / Save PDF';
+      btn.addEventListener('click', ()=>printRequestSnapshot(r, btn));
+      tr.lastElementChild.appendChild(btn);
+    }
+    body.appendChild(tr);
+  });
+}
+
+async function loadVerifyQueue(){
+  const body = document.getElementById('verifyRequestsBody');
+  const empty = document.getElementById('verifyRequestsEmpty');
+  body.innerHTML = "";
+  if(!supabaseAvailable() || !canVerifyTds()){
+    empty.textContent = "You don't have access to verify requests.";
+    empty.classList.remove('hidden');
+    return;
+  }
+  const { data, error } = await supabaseClient.from('tds_requests')
+    .select('id,created_at,created_by_email,ref,customer,alloy_label,temper,thickness_mm')
+    .eq('status', 'pending')
+    .order('created_at', { ascending: true });
+  if(error){
+    empty.textContent = "Could not load the verify queue: " + error.message;
+    empty.classList.remove('hidden');
+    return;
+  }
+  const rows = data || [];
+  empty.classList.toggle('hidden', rows.length > 0);
+  if(!rows.length){ empty.textContent = "Nothing pending right now."; return; }
+  rows.forEach(r=>{
+    const tr = document.createElement('tr');
+    const when = r.created_at ? new Date(r.created_at).toLocaleString() : '';
+    tr.innerHTML = `<td>${esc(r.ref||'')}</td><td>${esc(when)}</td><td>${esc(r.created_by_email||'')}</td>
+      <td>${esc(r.alloy_label||'')} / ${esc(r.temper||'')}</td>
+      <td>${r.thickness_mm!=null ? r.thickness_mm+' mm' : ''}</td><td>${esc(r.customer||'')}</td><td></td>`;
+    const actionCell = tr.lastElementChild;
+    const verifyBtn = document.createElement('button');
+    verifyBtn.type = 'button';
+    verifyBtn.textContent = 'Verify';
+    verifyBtn.addEventListener('click', ()=>setRequestStatus(r.id, 'verified'));
+    const rejectBtn = document.createElement('button');
+    rejectBtn.type = 'button';
+    rejectBtn.className = 'danger-btn';
+    rejectBtn.style.marginLeft = '6px';
+    rejectBtn.textContent = 'Reject';
+    // In-page reason capture, not a native prompt() — after several dialogs,
+    // browsers silently suppress confirm()/prompt() with zero visible feedback
+    // (a bug this app has hit repeatedly elsewhere), so this pattern is avoided.
+    const reasonRow = document.createElement('div');
+    reasonRow.className = 'hidden';
+    reasonRow.style.cssText = 'margin-top:6px;display:flex;gap:6px;';
+    reasonRow.innerHTML = `<input type="text" placeholder="Reason (shown to submitter)" style="flex:1;font-size:10.5px;padding:4px 6px;">
+      <button type="button" class="danger-btn">Confirm reject</button>`;
+    rejectBtn.addEventListener('click', ()=>{ reasonRow.classList.remove('hidden'); reasonRow.querySelector('input').focus(); });
+    reasonRow.querySelector('button').addEventListener('click', ()=>{
+      setRequestStatus(r.id, 'rejected', reasonRow.querySelector('input').value.trim());
+    });
+    actionCell.appendChild(verifyBtn);
+    actionCell.appendChild(rejectBtn);
+    actionCell.appendChild(reasonRow);
+    body.appendChild(tr);
+  });
+}
+
+async function setRequestStatus(id, status, rejectionReason){
+  const patch = { status, verified_by: currentUser.id, verified_by_email: currentUser.email, verified_at: new Date().toISOString() };
+  if(status==='rejected') patch.rejection_reason = rejectionReason || null;
+  const { error } = await supabaseClient.from('tds_requests').update(patch).eq('id', id);
+  if(error){ alert('Could not update request: ' + error.message); return; }
+  loadVerifyQueue();
+}
 
 /* =====================================================================
    FILEMAKER INTEGRATION BRIDGE
@@ -1956,21 +2142,40 @@ function isSuperAdmin(user){
   return !!user && user.email && user.email.toLowerCase() === SUPER_ADMIN_EMAIL;
 }
 
+// Department drives feature access: only QC (and the super admin, whose profile
+// is auto-set to 'admin') can edit master data; QC/Production/Admin can verify a
+// submitted TDS request. Everyone approved can submit requests and use My Requests.
+function canEditMasterData(){
+  return !!currentProfile && (currentProfile.department === 'qc' || currentProfile.department === 'admin');
+}
+function canVerifyTds(){
+  return !!currentProfile && ['qc','production','admin'].includes(currentProfile.department);
+}
+
+const DEPARTMENTS = ['sales','qc','production','admin'];
+
 async function renderApprovals(){
   const panel = document.getElementById('approvalsPanel');
   if(!isSuperAdmin(currentUser)){ panel.classList.add('hidden'); return; }
   panel.classList.remove('hidden');
-  const { data, error } = await supabaseClient.from('profiles').select('id,email,status,created_at').eq('status','pending').order('created_at', { ascending: true });
+  const { data, error } = await supabaseClient.from('profiles').select('id,email,status,created_at,department').order('created_at', { ascending: true });
   const list = document.getElementById('approvalsList');
   const countEl = document.getElementById('approvalsCount');
   list.innerHTML = "";
-  if(error){ list.innerHTML = `<div class="approval-row">Could not load approvals: ${esc(error.message)}</div>`; return; }
-  const pending = data || [];
+  if(error){ list.innerHTML = `<div class="approval-row">Could not load users: ${esc(error.message)}</div>`; return; }
+  const all = data || [];
+  const pending = all.filter(p=>p.status==='pending');
+  const approved = all.filter(p=>p.status==='approved');
   countEl.textContent = pending.length;
   countEl.classList.toggle('hidden', pending.length === 0);
+
+  const pendingHead = document.createElement('div');
+  pendingHead.style.cssText = "padding:8px 12px 2px;font-size:10.5px;font-weight:700;text-transform:uppercase;color:#999;";
+  pendingHead.textContent = "Pending signups";
+  list.appendChild(pendingHead);
   if(!pending.length){
-    list.innerHTML = `<div class="approval-row" style="color:#999;font-style:italic;">No pending signups.</div>`;
-    return;
+    const empty = document.createElement('div'); empty.className = "approval-row"; empty.style.cssText="color:#999;font-style:italic;";
+    empty.textContent = "No pending signups."; list.appendChild(empty);
   }
   pending.forEach(p=>{
     const row = document.createElement('div'); row.className = "approval-row";
@@ -1982,6 +2187,26 @@ async function renderApprovals(){
     row.querySelector('.reject-btn').addEventListener('click', ()=>setApproval(p.id, 'rejected'));
     list.appendChild(row);
   });
+
+  const approvedHead = document.createElement('div');
+  approvedHead.style.cssText = "padding:12px 12px 2px;font-size:10.5px;font-weight:700;text-transform:uppercase;color:#999;border-top:1px solid #f1e6d3;";
+  approvedHead.textContent = "Approved users — department";
+  list.appendChild(approvedHead);
+  if(!approved.length){
+    const empty = document.createElement('div'); empty.className = "approval-row"; empty.style.cssText="color:#999;font-style:italic;";
+    empty.textContent = "No approved users yet."; list.appendChild(empty);
+  }
+  approved.forEach(p=>{
+    const row = document.createElement('div'); row.className = "approval-row";
+    const isSelf = p.email && p.email.toLowerCase() === SUPER_ADMIN_EMAIL;
+    const options = DEPARTMENTS.map(d=>`<option value="${d}" ${d===p.department?'selected':''}>${d}</option>`).join('');
+    row.innerHTML = `<span class="email">${esc(p.email)}</span>
+      <select class="dept-select" ${isSelf?'disabled':''} style="font-size:10.5px;padding:4px 6px;">${options}</select>`;
+    if(!isSelf){
+      row.querySelector('.dept-select').addEventListener('change', (e)=>setDepartment(p.id, e.target.value));
+    }
+    list.appendChild(row);
+  });
 }
 
 async function setApproval(profileId, status){
@@ -1989,6 +2214,12 @@ async function setApproval(profileId, status){
     status, approved_at: new Date().toISOString(), approved_by: currentUser.id
   }).eq('id', profileId);
   if(error){ alert('Could not update approval: ' + error.message); return; }
+  renderApprovals();
+}
+
+async function setDepartment(profileId, department){
+  const { error } = await supabaseClient.from('profiles').update({ department }).eq('id', profileId);
+  if(error){ alert('Could not update department: ' + error.message); renderApprovals(); return; }
   renderApprovals();
 }
 
@@ -2013,6 +2244,9 @@ function showApp(){
   pendingGate.classList.add('hidden');
   appRoot.classList.remove('hidden');
   document.getElementById('topbarEmail').textContent = currentUser.email;
+  document.getElementById('tabVerify').classList.toggle('hidden', !canVerifyTds());
+  document.getElementById('tabAdmin').classList.toggle('hidden', !(canEditMasterData() || isSuperAdmin(currentUser)));
+  refreshAdminAccessUi();
   renderApprovals();
 }
 
@@ -2020,7 +2254,7 @@ async function runAuthGate(){
   const { data: { session } } = await supabaseClient.auth.getSession();
   if(!session){ currentUser = null; currentProfile = null; showAuthGate(); return; }
   currentUser = session.user;
-  const { data: profile, error } = await supabaseClient.from('profiles').select('id,email,status').eq('id', currentUser.id).maybeSingle();
+  const { data: profile, error } = await supabaseClient.from('profiles').select('id,email,status,department').eq('id', currentUser.id).maybeSingle();
   if(error || !profile){ currentProfile = null; showPendingGate('pending'); return; }
   currentProfile = profile;
   if(profile.status === 'approved'){
@@ -2222,61 +2456,71 @@ function openPrintWindow(){
   setTimeout(()=>{ win.focus(); win.print(); }, 300);
 }
 
+// Core html2canvas+jsPDF capture, reused by the Comparator's direct-print flow
+// and by printing a verified request's frozen snapshot from My Requests. Assumes
+// the #sheet element already holds whatever content should be captured — the
+// caller is responsible for painting it first. Returns the PDF's base64 data
+// URI string, or null if the PDF libraries aren't available (caller should fall
+// back to openPrintWindow() in that case).
+async function renderSheetToPdf(refText){
+  if(typeof html2canvas === 'undefined' || typeof window.jspdf === 'undefined'){
+    return null; // libraries didn't load (e.g. no internet access to the CDN)
+  }
+  const sheetEl = document.getElementById('sheet');
+  const canvas = await html2canvas(sheetEl, { scale:2, backgroundColor:'#ffffff', useCORS:true });
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ orientation:'portrait', unit:'pt', format:'a4' });
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const imgWidth = pageWidth;
+  const imgHeight = canvas.height * imgWidth / canvas.width;
+  const imgData = canvas.toDataURL('image/png');
+
+  // A TDS/comparator sheet is normally short enough to fit one page. If it's only
+  // modestly taller than one page (e.g. a couple of extra remark rows), scale the
+  // whole thing down to fit on a single page rather than spilling a sliver of
+  // content onto an almost-entirely-blank second page. Only fall back to true
+  // multi-page pagination for genuinely long content (e.g. a comparator with many
+  // alloys added), where shrinking to fit one page would make the text illegibly
+  // small.
+  const SINGLE_PAGE_FIT_THRESHOLD = 1.35; // allow up to 35% overflow before paginating instead
+  if(imgHeight <= pageHeight * SINGLE_PAGE_FIT_THRESHOLD){
+    const scale = Math.min(1, pageHeight / imgHeight);
+    const renderWidth = imgWidth * scale;
+    const renderHeight = imgHeight * scale;
+    const xOffset = (pageWidth - renderWidth) / 2;
+    pdf.addImage(imgData, 'PNG', xOffset, 0, renderWidth, renderHeight);
+  } else {
+    let heightLeft = imgHeight;
+    let position = 0;
+    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+    heightLeft -= pageHeight;
+    while(heightLeft > 0){
+      position = heightLeft - imgHeight;
+      pdf.addPage();
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+    }
+  }
+
+  const safeRef = (refText || 'TDS').replace(/[^a-zA-Z0-9_-]/g,'_');
+  pdf.save(`Alumill_${safeRef}.pdf`);
+  return pdf.output('datauristring'); // full "data:application/pdf;filename=...;base64,...." string
+}
+
 async function generatePdf(){
   const btn = document.getElementById('btnPrint');
   const original = btn.textContent;
-
-  if(typeof html2canvas === 'undefined' || typeof window.jspdf === 'undefined'){
-    // Libraries didn't load (e.g. no internet access to the CDN in this environment) — fall back.
-    openPrintWindow();
-    return;
-  }
-
   btn.textContent = "Generating PDF…";
   btn.disabled = true;
   try{
-    const sheetEl = document.getElementById('sheet');
-    const canvas = await html2canvas(sheetEl, { scale:2, backgroundColor:'#ffffff', useCORS:true });
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF({ orientation:'portrait', unit:'pt', format:'a4' });
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    const imgWidth = pageWidth;
-    const imgHeight = canvas.height * imgWidth / canvas.width;
-    const imgData = canvas.toDataURL('image/png');
-
-    // A TDS/comparator sheet is normally short enough to fit one page. If it's only
-    // modestly taller than one page (e.g. a couple of extra remark rows), scale the
-    // whole thing down to fit on a single page rather than spilling a sliver of
-    // content onto an almost-entirely-blank second page. Only fall back to true
-    // multi-page pagination for genuinely long content (e.g. a comparator with many
-    // alloys added), where shrinking to fit one page would make the text illegibly
-    // small.
-    const SINGLE_PAGE_FIT_THRESHOLD = 1.35; // allow up to 35% overflow before paginating instead
-    if(imgHeight <= pageHeight * SINGLE_PAGE_FIT_THRESHOLD){
-      const scale = Math.min(1, pageHeight / imgHeight);
-      const renderWidth = imgWidth * scale;
-      const renderHeight = imgHeight * scale;
-      const xOffset = (pageWidth - renderWidth) / 2;
-      pdf.addImage(imgData, 'PNG', xOffset, 0, renderWidth, renderHeight);
-    } else {
-      let heightLeft = imgHeight;
-      let position = 0;
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
-      while(heightLeft > 0){
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
-      }
+    const refText = document.getElementById('refOut')?.textContent || 'TDS';
+    const pdfBase64 = await renderSheetToPdf(refText);
+    if(pdfBase64 === null){
+      openPrintWindow();
+      return;
     }
-
-    const refText = (document.getElementById('refOut')?.textContent || 'TDS').replace(/[^a-zA-Z0-9_-]/g,'_');
-    pdf.save(`Alumill_${refText}.pdf`);
-
     if(fmAvailable() || supabaseAvailable()){
-      const pdfBase64 = pdf.output('datauristring'); // full "data:application/pdf;filename=...;base64,...." string
       pushGeneratedTdsRecord(pdfBase64);
     }
   } catch(err){
@@ -2286,6 +2530,76 @@ async function generatePdf(){
   } finally {
     btn.textContent = original;
     btn.disabled = false;
+  }
+}
+
+// TDS mode no longer prints directly — Sales submits a frozen snapshot for
+// QC/Production to verify; only then can it be printed (from My Requests).
+async function submitTdsRequest(){
+  const snap = buildTdsSnapshot();
+  if(!snap) return;
+  if(!supabaseAvailable()){
+    alert("Submitting TDS requests requires the Supabase-backed deployment — not available in this environment.");
+    return;
+  }
+  const btn = document.getElementById('btnPrint');
+  const original = btn.textContent;
+  btn.textContent = "Submitting…";
+  btn.disabled = true;
+  try{
+    const { error } = await supabaseClient.from('tds_requests').insert({
+      created_by: currentUser.id,
+      created_by_email: currentUser.email,
+      ref: snap.ref,
+      customer: snap.cust,
+      product: productSel.value === 'Other' ? productOther.value.trim() : productSel.value,
+      alloy_label: snap.alloyLabel,
+      temper: snap.temperKey,
+      thickness_mm: snap.thicknessMM,
+      width_mm: snap.widthMM,
+      units: snap.unitsMode,
+      snapshot: snap
+    });
+    if(error) throw error;
+    btn.textContent = "✓ Submitted for verification";
+    setTimeout(()=>{ btn.textContent = original; btn.disabled = false; }, 2500);
+  } catch(err){
+    console.error('Could not submit TDS request:', err);
+    alert("Could not submit request: " + err.message);
+    btn.textContent = original;
+    btn.disabled = false;
+  }
+}
+
+// Used by the "Print / Save PDF" button on a verified row in My Requests — paints
+// the request's frozen snapshot (not live DATA) into #sheet, captures it to PDF,
+// then restores whatever the sheet was showing before (live tds/compare state).
+async function printRequestSnapshot(req, buttonEl){
+  const original = buttonEl.textContent;
+  buttonEl.textContent = "Generating PDF…";
+  buttonEl.disabled = true;
+  const sheetEl = document.getElementById('sheet');
+  const wasHidden = sheetEl.classList.contains('hidden');
+  sheetEl.classList.remove('hidden');
+  try{
+    paintTdsSheet(req.snapshot);
+    const pdfBase64 = await renderSheetToPdf(req.snapshot.ref);
+    if(pdfBase64 === null){
+      alert("PDF libraries aren't available in this environment.");
+      return;
+    }
+    const { error } = await supabaseClient.from('tds_requests')
+      .update({ printed_at: new Date().toISOString(), pdf_base64: pdfBase64 })
+      .eq('id', req.id);
+    if(error) console.error('Could not record printed_at on request:', error);
+  } catch(err){
+    console.error('PDF generation failed:', err);
+    alert("PDF generation failed (" + err.message + ").");
+  } finally {
+    if(wasHidden) sheetEl.classList.add('hidden');
+    buttonEl.textContent = original;
+    buttonEl.disabled = false;
+    if(mode==='tds') render(); else if(mode==='compare') renderCompare();
   }
 }
 
@@ -2301,6 +2615,7 @@ document.getElementById('btnPrint').addEventListener('click', ()=>{
     setTimeout(()=>{ btn.textContent = original; btn.style.background = ""; btn.style.borderColor = ""; }, 2200);
     return;
   }
+  if(mode === 'tds'){ submitTdsRequest(); return; }
   generatePdf();
 });
 document.getElementById('btnReset').addEventListener('click', ()=>{
