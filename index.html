@@ -2160,13 +2160,19 @@ async function renderApprovals(){
   const panel = document.getElementById('approvalsPanel');
   if(!isSuperAdmin(currentUser)){ panel.classList.add('hidden'); return; }
   panel.classList.remove('hidden');
-  const { data, error } = await supabaseClient.from('profiles').select('id,email,status,created_at,department').order('created_at', { ascending: true });
+  const { data, error } = await supabaseClient.from('profiles').select('id,email,status,created_at,department,email_confirmed').order('created_at', { ascending: true });
   const list = document.getElementById('approvalsList');
   const countEl = document.getElementById('approvalsCount');
   list.innerHTML = "";
   if(error){ list.innerHTML = `<div class="approval-row">Could not load users: ${esc(error.message)}</div>`; return; }
   const all = data || [];
-  const pending = all.filter(p=>p.status==='pending');
+  // Only a confirmed email (the user clicked the link Supabase sent them) proves
+  // they actually own the address — anyone could type someone else's email into
+  // the signup form otherwise. Unconfirmed signups are shown as a passive count,
+  // never with Approve/Reject actions, so the admin is never asked to approve an
+  // identity nobody has proven ownership of.
+  const pending = all.filter(p=>p.status==='pending' && p.email_confirmed);
+  const unconfirmed = all.filter(p=>p.status==='pending' && !p.email_confirmed);
   const approved = all.filter(p=>p.status==='approved');
   countEl.textContent = pending.length;
   countEl.classList.toggle('hidden', pending.length === 0);
@@ -2178,6 +2184,11 @@ async function renderApprovals(){
   if(!pending.length){
     const empty = document.createElement('div'); empty.className = "approval-row"; empty.style.cssText="color:#999;font-style:italic;";
     empty.textContent = "No pending signups."; list.appendChild(empty);
+  }
+  if(unconfirmed.length){
+    const note = document.createElement('div'); note.className = "approval-row"; note.style.cssText="color:#999;font-style:italic;";
+    note.textContent = `${unconfirmed.length} more signup${unconfirmed.length===1?'':'s'} waiting on the requestor to confirm their email — not shown until then.`;
+    list.appendChild(note);
   }
   pending.forEach(p=>{
     const row = document.createElement('div'); row.className = "approval-row";
