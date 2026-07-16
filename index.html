@@ -160,8 +160,10 @@
   .temper-chip{
     font-family:'IBM Plex Mono',monospace; font-size:11px; background:var(--alu-1); border:1px solid var(--alu-3);
     border-radius:10px; padding:3px 6px 3px 9px; color:var(--steel-dark);
-    display:inline-flex; align-items:center; gap:5px;
+    display:inline-flex; align-items:center; gap:5px; cursor:grab; transition:box-shadow 0.1s, opacity 0.1s;
   }
+  .temper-chip.dragging{opacity:0.4; cursor:grabbing;}
+  .temper-chip.drag-over{box-shadow:0 0 0 2px var(--steel) inset;}
   .temper-chip .rm{
     background:none; border:none; padding:0 2px; margin:0; color:var(--danger); font-size:13px; line-height:1;
     cursor:pointer; font-weight:700; font-family:inherit;
@@ -1519,7 +1521,7 @@ function renderAlloyPropertiesList(){
 
     const temperChips = Object.keys(alloy.tempers).map(tk=>{
       const note = alloy.tempers[tk].equivNote;
-      return `<span class="temper-chip"${note?` title="${esc(note)}"`:''}>${esc(tk)}${note?' ⓘ':''}<button type="button" class="rm" data-rm-temper="${esc(tk)}" title="Remove temper ${esc(tk)}" aria-label="Remove temper ${esc(tk)}">&times;</button></span>`;
+      return `<span class="temper-chip" draggable="true" data-temper-chip="${esc(tk)}" title="${note?esc(note)+' — ':''}Drag to reorder">${esc(tk)}${note?' ⓘ':''}<button type="button" class="rm" data-rm-temper="${esc(tk)}" title="Remove temper ${esc(tk)}" aria-label="Remove temper ${esc(tk)}">&times;</button></span>`;
     }).join('');
 
     let html = `
@@ -1632,6 +1634,46 @@ function renderAlloyPropertiesList(){
           delete alloy.tempers[tk];
           renderAlloyAdmin(); buildLibraryTable(); populateAlloySelect(); populateCmpAlloySel(); renderCmpPairList(); render();
         }
+      });
+    });
+
+    // Drag a temper chip to reorder it — e.g. an out-of-sequence temper like H25
+    // added after the fact can be slid back between H24 and H26. Purely a display/
+    // admin-editing order (rebuilds alloy.tempers with the same keys in the new
+    // order); doesn't affect lookups, which match by thickness regardless of order.
+    let draggedTemperKey = null;
+    details.querySelectorAll('[data-temper-chip]').forEach(chip=>{
+      chip.addEventListener('dragstart', e=>{
+        draggedTemperKey = chip.dataset.temperChip;
+        chip.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+      });
+      chip.addEventListener('dragend', ()=>{
+        chip.classList.remove('dragging');
+        details.querySelectorAll('[data-temper-chip]').forEach(c=>c.classList.remove('drag-over'));
+      });
+      chip.addEventListener('dragover', e=>{
+        if(!draggedTemperKey || draggedTemperKey === chip.dataset.temperChip) return;
+        e.preventDefault();
+        chip.classList.add('drag-over');
+      });
+      chip.addEventListener('dragleave', ()=>{ chip.classList.remove('drag-over'); });
+      chip.addEventListener('drop', e=>{
+        e.preventDefault();
+        const targetKey = chip.dataset.temperChip;
+        chip.classList.remove('drag-over');
+        if(!draggedTemperKey || draggedTemperKey === targetKey) return;
+        const keys = Object.keys(alloy.tempers);
+        const draggedIdx = keys.indexOf(draggedTemperKey);
+        if(draggedIdx === -1) return;
+        keys.splice(draggedIdx, 1);
+        const targetIdx = keys.indexOf(targetKey);
+        keys.splice(targetIdx, 0, draggedTemperKey);
+        const reordered = {};
+        keys.forEach(k=>{ reordered[k] = alloy.tempers[k]; });
+        alloy.tempers = reordered;
+        draggedTemperKey = null;
+        renderAlloyAdmin();
       });
     });
 
