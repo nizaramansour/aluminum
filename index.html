@@ -186,7 +186,11 @@
   .admin-panel > summary::-webkit-details-marker{display:none;}
   .admin-section{padding:12px; border-top:1px solid #f3d4d4;}
   .admin-section h4{margin:0 0 6px; font-size:11.5px; text-transform:uppercase; letter-spacing:0.4px; color:var(--steel-dark);}
-  .status-line{font-size:11px; margin-top:8px; padding:6px 8px; border-radius:var(--radius); background:var(--alu-1); color:#444;}
+  .status-line{font-size:11px; margin-top:8px; padding:6px 8px; border-radius:var(--radius); background:var(--alu-1); color:#444; transition:background 0.2s,color 0.2s;}
+  .status-line.status-ok{background:#eef5ee; color:var(--good); font-weight:600;}
+  .status-line.status-fail{background:#fdecec; color:var(--danger); font-weight:600;}
+  button.save-ok{background:var(--good) !important; border-color:var(--good) !important; color:#fff !important;}
+  button.save-fail{background:var(--danger) !important; border-color:var(--danger) !important; color:#fff !important;}
   .product-row, .rule-row{display:flex; gap:6px; align-items:center; margin-bottom:6px;}
   .product-row input, .rule-row input, .rule-row select{flex:1; font-size:11.5px; padding:5px 6px;}
   .band-block{border:1px solid var(--line); border-radius:var(--radius); padding:8px; margin-bottom:8px;}
@@ -502,10 +506,21 @@
       </details>
 
       <details class="admin-panel">
-        <summary>Alloys &amp; Tempers</summary>
+        <summary>Alloy Properties</summary>
         <div class="admin-section">
-          <p class="hint">Chemistry and the list of tempers per alloy. Click an alloy's header to collapse or expand it. Thickness bands (tensile, yield, elongation, bend by mm range) live in the "Thickness Bands" section below.</p>
-          <div id="alloyTempersList"></div>
+          <p class="hint">Chemistry, tempers (add/remove), and thickness bands — all together per alloy. Click an alloy's header to expand it.</p>
+
+          <p class="note" style="font-weight:600;margin-top:10px;">Shared thickness ranges (mm)</p>
+          <p class="hint">The same set of ranges applies to every alloy by default, since ANSI/ASTM gauge steps are standardized across non-aerospace alloys. Edit them once here; any alloy+temper below can also override or exclude a range for just itself, from within its own Thickness Bands section.</p>
+          <table class="band-table" id="sharedRangesTable">
+            <thead><tr><th>Min (mm)</th><th>Max (mm)</th><th></th></tr></thead>
+            <tbody id="sharedRangesBody"></tbody>
+          </table>
+          <button type="button" class="ghost" id="btnAddRange" style="margin-top:4px;">+ Add range</button>
+          <div class="field-warn" id="sharedRangesError" style="margin-top:6px;"></div>
+
+          <p class="note" style="font-weight:600;margin-top:20px;">Alloys</p>
+          <div id="alloyPropertiesList"></div>
           <button type="button" class="ghost" id="btnShowNewAlloy" style="margin-top:8px;">+ Add new alloy</button>
           <div class="newalloy-form" id="newAlloyForm">
             <div class="row3">
@@ -535,27 +550,10 @@
             </div>
             <label style="margin-top:8px;">First temper name (e.g. H14)</label>
             <input type="text" id="naTemper" placeholder="H14">
-            <div class="hint">A starting band (0–999 mm, blank properties) is created automatically — fill it in from the Thickness Bands section after creating the alloy.</div>
+            <div class="hint">A starting band (0–999 mm, blank properties) is created automatically — fill it in from this same alloy's Thickness Bands section after creating it.</div>
             <button type="button" style="margin-top:8px;" id="btnCreateAlloy">Create alloy</button>
             <button type="button" class="secondary" style="margin-top:8px;" id="btnCancelAlloy">Cancel</button>
           </div>
-        </div>
-      </details>
-
-      <details class="admin-panel">
-        <summary>Thickness Bands</summary>
-        <div class="admin-section">
-          <p class="hint">Tensile, yield, elongation, and bend by thickness range — the same set of ranges applies to every alloy, since ANSI/ASTM gauge steps are standardized across non-aerospace alloys. Edit the shared ranges once here; each alloy below just fills in its own values against them.</p>
-          <p class="note" style="font-weight:600;margin-top:10px;">Shared thickness ranges (mm)</p>
-          <table class="band-table" id="sharedRangesTable">
-            <thead><tr><th>Min (mm)</th><th>Max (mm)</th><th></th></tr></thead>
-            <tbody id="sharedRangesBody"></tbody>
-          </table>
-          <button type="button" class="ghost" id="btnAddRange" style="margin-top:4px;">+ Add range</button>
-          <div class="field-warn" id="sharedRangesError" style="margin-top:6px;"></div>
-
-          <p class="note" style="font-weight:600;margin-top:16px;">Per-alloy values against the shared ranges</p>
-          <div id="thicknessBandsList"></div>
         </div>
       </details>
     </div>
@@ -1452,22 +1450,24 @@ document.getElementById('btnAddRule').addEventListener('click', ()=>{
   renderRuleAdmin();
 });
 
-// Tracks each alloy's expanded/collapsed state per section, so re-rendering after an
-// edit doesn't snap every alloy back open.
+// Tracks each alloy's expanded/collapsed state (Alloy Properties panel), so
+// re-rendering after an edit doesn't snap every alloy block back open.
 let alloyTempersCollapseState = {};
-let thicknessBandsCollapseState = {};
 // Which shared-range row (if any) is currently showing its inline min/max editor,
 // as "alloyKey|temperKey|rangeId" — transient UI state, not saved to DATA.
 let editingRangeRowKey = null;
 
 function renderAlloyAdmin(){
-  renderAlloyTempersAdmin();
   renderSharedRangesAdmin();
-  renderThicknessBandsAdmin();
+  renderAlloyPropertiesList();
 }
 
-function renderAlloyTempersAdmin(){
-  const list = document.getElementById('alloyTempersList');
+// One collapsible block per alloy, combining chemistry, tempers (add/remove), and
+// thickness bands (values + per-alloy+temper overrides/exclusions/extra bands) —
+// previously split across two separate "Alloys & Tempers" / "Thickness Bands"
+// sections, which meant adding a new temper's data was a two-tab round trip.
+function renderAlloyPropertiesList(){
+  const list = document.getElementById('alloyPropertiesList');
   list.innerHTML = "";
   Object.keys(DATA.alloys).forEach(ak=>{
     const alloy = DATA.alloys[ak];
@@ -1481,7 +1481,7 @@ function renderAlloyTempersAdmin(){
       return `<span class="temper-chip"${note?` title="${esc(note)}"`:''}>${esc(tk)}${note?' ⓘ':''}<button type="button" class="rm" data-rm-temper="${esc(tk)}" title="Remove temper ${esc(tk)}" aria-label="Remove temper ${esc(tk)}">&times;</button></span>`;
     }).join('');
 
-    details.innerHTML = `
+    let html = `
       <summary>${esc(alloy.label)} <span style="color:#999;font-weight:400;">(${esc(ak)})</span></summary>
       <div class="alloy-collapse-body">
         <div class="field-with-label" style="margin-bottom:8px;"><span class="field-label">Standard</span><input type="text" class="al-standard" value="${esc(alloy.standard)}"></div>
@@ -1517,7 +1517,88 @@ function renderAlloyTempersAdmin(){
             <button type="button" class="secondary newtemper-cancel" style="padding:6px 10px;font-size:11.5px;">Cancel</button>
           </div>
         </div>
+
+        <div style="margin-top:16px;padding-top:12px;border-top:2px solid var(--line);">
+          <span class="field-label" style="font-size:11px;">Thickness Bands</span>`;
+
+    Object.keys(alloy.tempers).forEach(tk=>{
+      const temper = alloy.tempers[tk];
+      if(!temper.extraRanges) temper.extraRanges = [];
+      if(!temper.rangeOverrides) temper.rangeOverrides = {};
+      const combinedRanges = getRangesForTemper(ak, tk);
+      const extraIds = new Set(temper.extraRanges.map(r=>r.id));
+      const excludedIds = Object.keys(temper.rangeOverrides).filter(rid => temper.rangeOverrides[rid] === 'excluded');
+
+      html += `<div style="margin:14px 0;">
+        <strong style="font-size:11.5px;">Temper: ${esc(tk)}</strong>
+
+        <div data-extra-for="${esc(tk)}" style="margin:6px 0 10px;padding:10px;border:1px dashed var(--brass-light);border-radius:var(--radius);background:#fdfaf4;">
+          <span class="field-label" style="color:var(--brass);">Extra thickness bands — ${esc(alloy.label)} ${esc(tk)} only</span>
+          <p class="hint" style="margin-top:2px;">Bands added here apply only to this exact alloy+temper combination — e.g. this temper produced in a heavier gauge than any other temper of this alloy (or any other alloy) comes in. They don't appear on any other temper's table, including other tempers of ${esc(alloy.label)}.</p>
+          <table class="band-table" style="margin-top:6px;">
+            <thead><tr><th>Min (mm)</th><th>Max (mm)</th><th></th></tr></thead>
+            <tbody class="extra-range-body"></tbody>
+          </table>
+          <button type="button" class="ghost extra-range-add" style="margin-top:4px;">+ Add band for this temper</button>
+          <div class="field-warn extra-range-err" style="margin-top:6px;"></div>
+          ${excludedIds.length ? `<div style="margin-top:10px;padding-top:8px;border-top:1px dashed var(--brass-light);">
+            <span class="field-label" style="color:var(--brass);">Excluded shared ranges (hidden for ${esc(tk)} only)</span>
+            <div class="excluded-range-chips">
+              ${excludedIds.map(rid=>{
+                const orig = DATA.thicknessRanges.find(r=>r.id===rid);
+                return orig ? `<span class="excluded-range-chip" data-restore-excluded="${esc(rid)}">${orig.min}–${orig.max}<button type="button" title="Restore this range for ${esc(tk)}">&times;</button></span>` : '';
+              }).join('')}
+            </div>
+          </div>` : ''}
+        </div>
+
+        <table class="band-table">
+          <thead><tr>
+            <th>Range (mm)</th><th>Tensile min (MPa)</th><th>Tensile max (MPa)</th>
+            <th>Yield min (MPa)</th><th>Elongation (%)</th><th>Bend</th>
+          </tr></thead>
+          <tbody>`;
+      combinedRanges.forEach(range=>{
+        if(!temper.values[range.id]) temper.values[range.id] = bv();
+        const b = temper.values[range.id];
+        const isExtra = extraIds.has(range.id);
+        const override = temper.rangeOverrides[range.id];
+        const isOverridden = override && override !== 'excluded';
+        const rowKey = `${ak}|${tk}|${range.id}`;
+
+        let labelCellHtml;
+        if(editingRangeRowKey === rowKey){
+          labelCellHtml = `<div class="range-edit-form">
+            <input type="number" class="range-edit-min" value="${range.min}" step="0.01">–<input type="number" class="range-edit-max" value="${range.max}" step="0.01">
+            <button type="button" class="ghost tiny range-edit-save">Save</button>
+            <button type="button" class="secondary tiny range-edit-cancel">Cancel</button>
+            <div class="field-warn range-edit-err" style="width:100%;margin-top:4px;"></div>
+          </div>`;
+        } else {
+          const tag = isExtra ? ` <span class="own-band-tag" title="Specific to this alloy+temper, not shared with any other temper">own</span>`
+            : isOverridden ? ` <span class="custom-band-tag" title="Customized for this alloy+temper only — other alloys/tempers still use the shared range">custom</span>`
+            : '';
+          const controls = isExtra ? ''
+            : isOverridden ? `<span class="range-row-controls"><button type="button" class="ghost tiny range-edit-btn" title="Edit this custom range">✎</button><button type="button" class="ghost tiny range-restore-btn" title="Restore the shared default for this temper">↺</button></span>`
+            : `<span class="range-row-controls"><button type="button" class="ghost tiny range-edit-btn" title="Customize this range for ${esc(tk)} only">✎</button><button type="button" class="danger-btn tiny range-exclude-btn" title="Exclude this range for ${esc(tk)} only">✕</button></span>`;
+          labelCellHtml = `${range.min}–${range.max}${tag}${controls}`;
+        }
+
+        html += `<tr data-alloy="${esc(ak)}" data-temper="${esc(tk)}" data-range="${esc(range.id)}">
+            <td class="range-label-cell" style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#888;white-space:nowrap;">${labelCellHtml}</td>
+            <td><input type="number" class="b-tmin" value="${b.tensileMin==null?'':b.tensileMin}"></td>
+            <td><input type="number" class="b-tmax" value="${b.tensileMax==null?'':b.tensileMax}"></td>
+            <td><input type="number" class="b-ymin" value="${b.yieldMin==null?'':b.yieldMin}"></td>
+            <td><input type="text" class="b-elong" value="${esc(b.elong==null?'':b.elong)}"></td>
+            <td><input type="text" class="b-bend" value="${esc(b.bend==null?'':b.bend)}"></td>
+          </tr>`;
+      });
+      html += `</tbody></table>
       </div>`;
+    });
+
+    html += `</div></div>`; // close Thickness Bands wrapper + alloy-collapse-body
+    details.innerHTML = html;
 
     details.querySelector('.al-standard').addEventListener('change', e=>{ alloy.standard = e.target.value; populateAll(); });
     const cf = {si:'.al-si',fe:'.al-fe',cu:'.al-cu',mn:'.al-mn',mg:'.al-mg',cr:'.al-cr',zn:'.al-zn',ti:'.al-ti',each:'.al-each',total:'.al-total',al:'.al-al'};
@@ -1567,6 +1648,95 @@ function renderAlloyTempersAdmin(){
           delete alloy.tempers[tk];
           renderAlloyAdmin(); buildLibraryTable(); populateAlloySelect(); populateCmpAlloySel(); renderCmpPairList(); render();
         }
+      });
+    });
+
+    details.querySelectorAll('tr[data-range]').forEach(rowEl=>{
+      const tk = rowEl.dataset.temper, rid = rowEl.dataset.range;
+      const cell = alloy.tempers[tk].values[rid];
+      const upd = ()=>{
+        const tMinStr = rowEl.querySelector('.b-tmin').value.trim();
+        const tMaxStr = rowEl.querySelector('.b-tmax').value.trim();
+        const yMinStr = rowEl.querySelector('.b-ymin').value.trim();
+        const elongStr = rowEl.querySelector('.b-elong').value.trim();
+        const bendStr = rowEl.querySelector('.b-bend').value.trim();
+        cell.tensileMin = tMinStr===''? null : parseFloat(tMinStr);
+        cell.tensileMax = tMaxStr===''? null : parseFloat(tMaxStr);
+        cell.yieldMin = yMinStr===''? null : parseFloat(yMinStr);
+        cell.elong = elongStr===''? null : parseFloat(elongStr);
+        cell.bend = bendStr===''? null : bendStr;
+        cell.verified = true;
+        buildLibraryTable(); populateCmpAlloySel(); renderCmpPairList(); render();
+      };
+      rowEl.querySelectorAll('.b-tmin,.b-tmax,.b-ymin,.b-elong,.b-bend').forEach(el=>el.addEventListener('change', upd));
+
+      const ak2 = rowEl.dataset.alloy, tk2 = rowEl.dataset.temper, rid2 = rowEl.dataset.range;
+      const temper2 = DATA.alloys[ak2].tempers[tk2];
+
+      const editBtn = rowEl.querySelector('.range-edit-btn');
+      if(editBtn) editBtn.addEventListener('click', ()=>{
+        editingRangeRowKey = `${ak2}|${tk2}|${rid2}`;
+        renderAlloyPropertiesList();
+      });
+
+      const restoreBtn = rowEl.querySelector('.range-restore-btn');
+      if(restoreBtn) restoreBtn.addEventListener('click', ()=>{
+        delete temper2.rangeOverrides[rid2];
+        renderAlloyPropertiesList(); buildLibraryTable(); render();
+      });
+
+      const excludeBtn = rowEl.querySelector('.range-exclude-btn');
+      if(excludeBtn) armConfirmButton(excludeBtn, {
+        armedText: 'Confirm', armedTitle: `Click again to exclude this range for ${esc(tk2)} only — it stops showing on this temper's table (not deleted; restore it from the "Excluded shared ranges" list above).`,
+        onConfirm: ()=>{
+          temper2.rangeOverrides[rid2] = 'excluded';
+          renderAlloyPropertiesList(); buildLibraryTable(); render();
+        }
+      });
+
+      const saveBtn = rowEl.querySelector('.range-edit-save');
+      if(saveBtn) saveBtn.addEventListener('click', ()=>{
+        const cellEl = rowEl.querySelector('.range-label-cell');
+        const minInput = cellEl.querySelector('.range-edit-min');
+        const maxInput = cellEl.querySelector('.range-edit-max');
+        const errEl = cellEl.querySelector('.range-edit-err');
+        const newMin = parseFloat(minInput.value);
+        const newMax = parseFloat(maxInput.value);
+        if(isNaN(newMin) || isNaN(newMax)){ errEl.textContent = "Enter numbers for both Min and Max."; errEl.classList.add('show'); return; }
+        if(newMin >= newMax){ errEl.textContent = "Min must be less than Max."; errEl.classList.add('show'); return; }
+        const clash = findRangeOverlapForTemper(ak2, tk2, {min:newMin, max:newMax}, rid2);
+        if(clash){ errEl.textContent = `${newMin}–${newMax} mm would overlap the existing ${clash.min}–${clash.max} mm range.`; errEl.classList.add('show'); return; }
+        temper2.rangeOverrides[rid2] = { min:newMin, max:newMax };
+        editingRangeRowKey = null;
+        renderAlloyPropertiesList(); buildLibraryTable(); render();
+      });
+
+      const cancelBtn = rowEl.querySelector('.range-edit-cancel');
+      if(cancelBtn) cancelBtn.addEventListener('click', ()=>{
+        editingRangeRowKey = null;
+        renderAlloyPropertiesList();
+      });
+    });
+
+    details.querySelectorAll('[data-restore-excluded]').forEach(chip=>{
+      const rid = chip.dataset.restoreExcluded;
+      const wrap = chip.closest('[data-extra-for]');
+      const tk = wrap.dataset.extraFor;
+      chip.querySelector('button').addEventListener('click', ()=>{
+        delete alloy.tempers[tk].rangeOverrides[rid];
+        renderAlloyPropertiesList(); buildLibraryTable(); render();
+      });
+    });
+
+    Object.keys(alloy.tempers).forEach(tk=>{
+      const wrap = details.querySelector(`[data-extra-for="${CSS.escape(tk)}"]`);
+      renderTemperExtraRangesRows(wrap, ak, tk);
+      wrap.querySelector('.extra-range-add').addEventListener('click', ()=>{
+        const combined = getRangesForTemper(ak, tk);
+        const newMin = combined.length ? Math.max(...combined.map(r=>r.max)) : 0;
+        alloy.tempers[tk].extraRanges.push({ id:'E'+Date.now(), min:newMin, max:newMin+1 });
+        sortTemperExtraRanges(ak, tk);
+        renderAlloyPropertiesList(); buildLibraryTable(); render();
       });
     });
 
@@ -1651,7 +1821,7 @@ function renderSharedRangesAdmin(){
       const clash = findRangeOverlap({min:newMin, max:r.max}, r.id);
       if(clash){ rejectEdit(minInput, `${newMin}–${r.max} mm would overlap the existing ${clash.min}–${clash.max} mm range.`); return; }
       r.min = newMin;
-      renderSharedRangesAdmin(); renderThicknessBandsAdmin(); buildLibraryTable(); render();
+      renderSharedRangesAdmin(); renderAlloyPropertiesList(); buildLibraryTable(); render();
     });
     maxInput.addEventListener('change', e=>{
       const newMax = parseFloat(e.target.value);
@@ -1660,13 +1830,13 @@ function renderSharedRangesAdmin(){
       const clash = findRangeOverlap({min:r.min, max:newMax}, r.id);
       if(clash){ rejectEdit(maxInput, `${r.min}–${newMax} mm would overlap the existing ${clash.min}–${clash.max} mm range.`); return; }
       r.max = newMax;
-      renderSharedRangesAdmin(); renderThicknessBandsAdmin(); buildLibraryTable(); render();
+      renderSharedRangesAdmin(); renderAlloyPropertiesList(); buildLibraryTable(); render();
     });
     armConfirmButton(tr.querySelector('.danger-btn'), {
       armedText: 'Confirm', armedTitle: `Click again to remove the ${r.min}–${r.max} mm range. Any alloy values stored against it become inactive (not deleted, just unused) unless you re-add an identical range.`,
       onConfirm: ()=>{
         DATA.thicknessRanges.splice(idx,1);
-        renderSharedRangesAdmin(); renderThicknessBandsAdmin(); buildLibraryTable(); render();
+        renderSharedRangesAdmin(); renderAlloyPropertiesList(); buildLibraryTable(); render();
       }
     });
     body.appendChild(tr);
@@ -1678,191 +1848,8 @@ document.getElementById('btnAddRange').addEventListener('click', ()=>{
   const newMin = DATA.thicknessRanges.length ? Math.max(...DATA.thicknessRanges.map(r=>r.max)) : 0;
   DATA.thicknessRanges.push({ id:'R'+Date.now(), min:newMin, max:newMin+1 });
   sortThicknessRanges();
-  renderSharedRangesAdmin(); renderThicknessBandsAdmin(); buildLibraryTable(); render();
+  renderSharedRangesAdmin(); renderAlloyPropertiesList(); buildLibraryTable(); render();
 });
-
-function renderThicknessBandsAdmin(){
-  const list = document.getElementById('thicknessBandsList');
-  list.innerHTML = "";
-  Object.keys(DATA.alloys).forEach(ak=>{
-    const alloy = DATA.alloys[ak];
-    const details = document.createElement('details');
-    details.className = "alloy-collapse";
-    details.open = thicknessBandsCollapseState[ak] ?? false;
-    details.addEventListener('toggle', ()=>{ thicknessBandsCollapseState[ak] = details.open; });
-
-    let html = `<summary>${esc(alloy.label)} <span style="color:#999;font-weight:400;">(${esc(ak)})</span></summary><div class="alloy-collapse-body">`;
-
-    Object.keys(alloy.tempers).forEach(tk=>{
-      const temper = alloy.tempers[tk];
-      if(!temper.extraRanges) temper.extraRanges = [];
-      if(!temper.rangeOverrides) temper.rangeOverrides = {};
-      const combinedRanges = getRangesForTemper(ak, tk);
-      const extraIds = new Set(temper.extraRanges.map(r=>r.id));
-      const excludedIds = Object.keys(temper.rangeOverrides).filter(rid => temper.rangeOverrides[rid] === 'excluded');
-
-      html += `<div style="margin-bottom:18px;">
-        <strong style="font-size:11.5px;">Temper: ${esc(tk)}</strong>
-
-        <div data-extra-for="${esc(tk)}" style="margin:6px 0 10px;padding:10px;border:1px dashed var(--brass-light);border-radius:var(--radius);background:#fdfaf4;">
-          <span class="field-label" style="color:var(--brass);">Extra thickness bands — ${esc(alloy.label)} ${esc(tk)} only</span>
-          <p class="hint" style="margin-top:2px;">Bands added here apply only to this exact alloy+temper combination — e.g. this temper produced in a heavier gauge than any other temper of this alloy (or any other alloy) comes in. They don't appear on any other temper's table, including other tempers of ${esc(alloy.label)}.</p>
-          <table class="band-table" style="margin-top:6px;">
-            <thead><tr><th>Min (mm)</th><th>Max (mm)</th><th></th></tr></thead>
-            <tbody class="extra-range-body"></tbody>
-          </table>
-          <button type="button" class="ghost extra-range-add" style="margin-top:4px;">+ Add band for this temper</button>
-          <div class="field-warn extra-range-err" style="margin-top:6px;"></div>
-          ${excludedIds.length ? `<div style="margin-top:10px;padding-top:8px;border-top:1px dashed var(--brass-light);">
-            <span class="field-label" style="color:var(--brass);">Excluded shared ranges (hidden for ${esc(tk)} only)</span>
-            <div class="excluded-range-chips">
-              ${excludedIds.map(rid=>{
-                const orig = DATA.thicknessRanges.find(r=>r.id===rid);
-                return orig ? `<span class="excluded-range-chip" data-restore-excluded="${esc(rid)}">${orig.min}–${orig.max}<button type="button" title="Restore this range for ${esc(tk)}">&times;</button></span>` : '';
-              }).join('')}
-            </div>
-          </div>` : ''}
-        </div>
-
-        <table class="band-table">
-          <thead><tr>
-            <th>Range (mm)</th><th>Tensile min (MPa)</th><th>Tensile max (MPa)</th>
-            <th>Yield min (MPa)</th><th>Elongation (%)</th><th>Bend</th>
-          </tr></thead>
-          <tbody>`;
-      combinedRanges.forEach(range=>{
-        if(!temper.values[range.id]) temper.values[range.id] = bv();
-        const b = temper.values[range.id];
-        const isExtra = extraIds.has(range.id);
-        const override = temper.rangeOverrides[range.id];
-        const isOverridden = override && override !== 'excluded';
-        const rowKey = `${ak}|${tk}|${range.id}`;
-
-        let labelCellHtml;
-        if(editingRangeRowKey === rowKey){
-          labelCellHtml = `<div class="range-edit-form">
-            <input type="number" class="range-edit-min" value="${range.min}" step="0.01">–<input type="number" class="range-edit-max" value="${range.max}" step="0.01">
-            <button type="button" class="ghost tiny range-edit-save">Save</button>
-            <button type="button" class="secondary tiny range-edit-cancel">Cancel</button>
-            <div class="field-warn range-edit-err" style="width:100%;margin-top:4px;"></div>
-          </div>`;
-        } else {
-          const tag = isExtra ? ` <span class="own-band-tag" title="Specific to this alloy+temper, not shared with any other temper">own</span>`
-            : isOverridden ? ` <span class="custom-band-tag" title="Customized for this alloy+temper only — other alloys/tempers still use the shared range">custom</span>`
-            : '';
-          const controls = isExtra ? ''
-            : isOverridden ? `<span class="range-row-controls"><button type="button" class="ghost tiny range-edit-btn" title="Edit this custom range">✎</button><button type="button" class="ghost tiny range-restore-btn" title="Restore the shared default for this temper">↺</button></span>`
-            : `<span class="range-row-controls"><button type="button" class="ghost tiny range-edit-btn" title="Customize this range for ${esc(tk)} only">✎</button><button type="button" class="danger-btn tiny range-exclude-btn" title="Exclude this range for ${esc(tk)} only">✕</button></span>`;
-          labelCellHtml = `${range.min}–${range.max}${tag}${controls}`;
-        }
-
-        html += `<tr data-alloy="${esc(ak)}" data-temper="${esc(tk)}" data-range="${esc(range.id)}">
-            <td class="range-label-cell" style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#888;white-space:nowrap;">${labelCellHtml}</td>
-            <td><input type="number" class="b-tmin" value="${b.tensileMin==null?'':b.tensileMin}"></td>
-            <td><input type="number" class="b-tmax" value="${b.tensileMax==null?'':b.tensileMax}"></td>
-            <td><input type="number" class="b-ymin" value="${b.yieldMin==null?'':b.yieldMin}"></td>
-            <td><input type="text" class="b-elong" value="${esc(b.elong==null?'':b.elong)}"></td>
-            <td><input type="text" class="b-bend" value="${esc(b.bend==null?'':b.bend)}"></td>
-          </tr>`;
-      });
-      html += `</tbody></table>
-      </div>`;
-    });
-    html += `</div>`;
-    details.innerHTML = html;
-
-    details.querySelectorAll('tr[data-range]').forEach(rowEl=>{
-      const tk = rowEl.dataset.temper, rid = rowEl.dataset.range;
-      const cell = alloy.tempers[tk].values[rid];
-      const upd = ()=>{
-        const tMinStr = rowEl.querySelector('.b-tmin').value.trim();
-        const tMaxStr = rowEl.querySelector('.b-tmax').value.trim();
-        const yMinStr = rowEl.querySelector('.b-ymin').value.trim();
-        const elongStr = rowEl.querySelector('.b-elong').value.trim();
-        const bendStr = rowEl.querySelector('.b-bend').value.trim();
-        cell.tensileMin = tMinStr===''? null : parseFloat(tMinStr);
-        cell.tensileMax = tMaxStr===''? null : parseFloat(tMaxStr);
-        cell.yieldMin = yMinStr===''? null : parseFloat(yMinStr);
-        cell.elong = elongStr===''? null : parseFloat(elongStr);
-        cell.bend = bendStr===''? null : bendStr;
-        cell.verified = true;
-        buildLibraryTable(); populateCmpAlloySel(); renderCmpPairList(); render();
-      };
-      rowEl.querySelectorAll('.b-tmin,.b-tmax,.b-ymin,.b-elong,.b-bend').forEach(el=>el.addEventListener('change', upd));
-
-      const ak2 = rowEl.dataset.alloy, tk2 = rowEl.dataset.temper, rid2 = rowEl.dataset.range;
-      const temper2 = DATA.alloys[ak2].tempers[tk2];
-
-      const editBtn = rowEl.querySelector('.range-edit-btn');
-      if(editBtn) editBtn.addEventListener('click', ()=>{
-        editingRangeRowKey = `${ak2}|${tk2}|${rid2}`;
-        renderThicknessBandsAdmin();
-      });
-
-      const restoreBtn = rowEl.querySelector('.range-restore-btn');
-      if(restoreBtn) restoreBtn.addEventListener('click', ()=>{
-        delete temper2.rangeOverrides[rid2];
-        renderThicknessBandsAdmin(); buildLibraryTable(); render();
-      });
-
-      const excludeBtn = rowEl.querySelector('.range-exclude-btn');
-      if(excludeBtn) armConfirmButton(excludeBtn, {
-        armedText: 'Confirm', armedTitle: `Click again to exclude this range for ${esc(tk2)} only — it stops showing on this temper's table (not deleted; restore it from the "Excluded shared ranges" list above).`,
-        onConfirm: ()=>{
-          temper2.rangeOverrides[rid2] = 'excluded';
-          renderThicknessBandsAdmin(); buildLibraryTable(); render();
-        }
-      });
-
-      const saveBtn = rowEl.querySelector('.range-edit-save');
-      if(saveBtn) saveBtn.addEventListener('click', ()=>{
-        const cellEl = rowEl.querySelector('.range-label-cell');
-        const minInput = cellEl.querySelector('.range-edit-min');
-        const maxInput = cellEl.querySelector('.range-edit-max');
-        const errEl = cellEl.querySelector('.range-edit-err');
-        const newMin = parseFloat(minInput.value);
-        const newMax = parseFloat(maxInput.value);
-        if(isNaN(newMin) || isNaN(newMax)){ errEl.textContent = "Enter numbers for both Min and Max."; errEl.classList.add('show'); return; }
-        if(newMin >= newMax){ errEl.textContent = "Min must be less than Max."; errEl.classList.add('show'); return; }
-        const clash = findRangeOverlapForTemper(ak2, tk2, {min:newMin, max:newMax}, rid2);
-        if(clash){ errEl.textContent = `${newMin}–${newMax} mm would overlap the existing ${clash.min}–${clash.max} mm range.`; errEl.classList.add('show'); return; }
-        temper2.rangeOverrides[rid2] = { min:newMin, max:newMax };
-        editingRangeRowKey = null;
-        renderThicknessBandsAdmin(); buildLibraryTable(); render();
-      });
-
-      const cancelBtn = rowEl.querySelector('.range-edit-cancel');
-      if(cancelBtn) cancelBtn.addEventListener('click', ()=>{
-        editingRangeRowKey = null;
-        renderThicknessBandsAdmin();
-      });
-    });
-
-    details.querySelectorAll('[data-restore-excluded]').forEach(chip=>{
-      const rid = chip.dataset.restoreExcluded;
-      const wrap = chip.closest('[data-extra-for]');
-      const tk = wrap.dataset.extraFor;
-      chip.querySelector('button').addEventListener('click', ()=>{
-        delete alloy.tempers[tk].rangeOverrides[rid];
-        renderThicknessBandsAdmin(); buildLibraryTable(); render();
-      });
-    });
-
-    Object.keys(alloy.tempers).forEach(tk=>{
-      const wrap = details.querySelector(`[data-extra-for="${CSS.escape(tk)}"]`);
-      renderTemperExtraRangesRows(wrap, ak, tk);
-      wrap.querySelector('.extra-range-add').addEventListener('click', ()=>{
-        const combined = getRangesForTemper(ak, tk);
-        const newMin = combined.length ? Math.max(...combined.map(r=>r.max)) : 0;
-        alloy.tempers[tk].extraRanges.push({ id:'E'+Date.now(), min:newMin, max:newMin+1 });
-        sortTemperExtraRanges(ak, tk);
-        renderThicknessBandsAdmin(); buildLibraryTable(); render();
-      });
-    });
-
-    list.appendChild(details);
-  });
-}
 
 function renderTemperExtraRangesRows(wrap, alloyKey, temperKey){
   const alloy = DATA.alloys[alloyKey];
@@ -1896,7 +1883,7 @@ function renderTemperExtraRangesRows(wrap, alloyKey, temperKey){
       if(clash){ rejectEdit(minInput, `${newMin}–${r.max} mm would overlap the existing ${clash.min}–${clash.max} mm band.`); return; }
       r.min = newMin;
       sortTemperExtraRanges(alloyKey, temperKey);
-      renderThicknessBandsAdmin(); buildLibraryTable(); render();
+      renderAlloyPropertiesList(); buildLibraryTable(); render();
     });
     maxInput.addEventListener('change', e=>{
       const newMax = parseFloat(e.target.value);
@@ -1906,13 +1893,13 @@ function renderTemperExtraRangesRows(wrap, alloyKey, temperKey){
       if(clash){ rejectEdit(maxInput, `${r.min}–${newMax} mm would overlap the existing ${clash.min}–${clash.max} mm band.`); return; }
       r.max = newMax;
       sortTemperExtraRanges(alloyKey, temperKey);
-      renderThicknessBandsAdmin(); buildLibraryTable(); render();
+      renderAlloyPropertiesList(); buildLibraryTable(); render();
     });
     armConfirmButton(tr.querySelector('.danger-btn'), {
       armedText: 'Confirm', armedTitle: `Click again to remove the ${r.min}–${r.max} mm band from ${alloy.label} ${temperKey}. Any values stored against it become inactive (not deleted, just unused) unless you re-add an identical band.`,
       onConfirm: ()=>{
         temper.extraRanges.splice(idx,1);
-        renderThicknessBandsAdmin(); buildLibraryTable(); render();
+        renderAlloyPropertiesList(); buildLibraryTable(); render();
       }
     });
     body.appendChild(tr);
@@ -2229,25 +2216,42 @@ async function pushGeneratedTdsRecord(pdfBase64){
 
 async function saveMasterData(){
   const status = document.getElementById('storageStatus');
+  const btn = document.getElementById('btnSaveMaster');
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Saving…";
+  btn.classList.remove('save-ok', 'save-fail');
+  const finish = (ok, message)=>{
+    status.textContent = message;
+    status.classList.remove('status-ok', 'status-fail');
+    status.classList.add(ok ? 'status-ok' : 'status-fail');
+    btn.textContent = ok ? "✓ Saved" : "✕ Save failed";
+    btn.classList.add(ok ? 'save-ok' : 'save-fail');
+    setTimeout(()=>{
+      btn.textContent = originalText;
+      btn.disabled = false;
+      btn.classList.remove('save-ok', 'save-fail');
+    }, 2200);
+  };
   if(fmAvailable()){
     window.FileMaker.PerformScript("TDS - Save Master Data", JSON.stringify(DATA));
-    status.textContent = "Sent to FileMaker for saving.";
+    finish(true, "Sent to FileMaker for saving.");
     return;
   }
   if(supabaseAvailable()){
     try{
       await saveMasterDataToSupabase();
-      status.textContent = "Saved to Supabase — shared with everyone using this deployment.";
+      finish(true, "Saved to Supabase — shared with everyone using this deployment.");
     }catch(e){
-      status.textContent = "Could not save to Supabase: " + e.message;
+      finish(false, "Could not save to Supabase: " + e.message);
     }
     return;
   }
   try{
     await window.storage.set(STORAGE_KEY, JSON.stringify(DATA), true);
-    status.textContent = "Saved — this master data is now shared with everyone using this tool.";
+    finish(true, "Saved — this master data is now shared with everyone using this tool.");
   }catch(e){
-    status.textContent = "Could not save to shared storage in this environment. Changes apply to this session only.";
+    finish(false, "Could not save to shared storage in this environment. Changes apply to this session only.");
   }
 }
 document.getElementById('btnSaveMaster').addEventListener('click', saveMasterData);
