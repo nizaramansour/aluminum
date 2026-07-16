@@ -1453,6 +1453,8 @@ function setMode(newMode){
   myRequestsControls.classList.toggle('hidden', mode!=='myrequests');
   verifyControls.classList.toggle('hidden', mode!=='verify');
   adminControls.classList.toggle('hidden', mode!=='admin');
+  tdsBody.classList.toggle('hidden', mode!=='tds');
+  compareBody.classList.toggle('hidden', mode!=='compare');
   const adminUnlocked = mode==='admin' && canEditMasterData();
   document.getElementById('sheet').classList.toggle('hidden', mode!=='tds' && mode!=='compare');
   document.getElementById('adminMainPanel').classList.toggle('hidden', !adminUnlocked);
