@@ -60,6 +60,7 @@
   button.secondary{background:#fff; color:var(--ink);}
   button.ghost{background:#fff; color:var(--steel); border-color:var(--steel); font-size:11.5px; padding:6px 10px;}
   button.danger-btn{background:#fff; color:var(--danger); border-color:var(--danger); font-size:11.5px; padding:5px 8px;}
+  button.confirm-armed{background:var(--danger) !important; color:#fff !important; border-color:var(--danger) !important;}
   button:hover{opacity:0.88;}
   button:focus-visible{outline:2px solid var(--brass); outline-offset:2px;}
 
@@ -474,7 +475,7 @@
         <p>Changes here update the shared master data used across the TDS Generator and Comparator tabs.</p>
       </div>
 
-      <details class="admin-panel" open>
+      <details class="admin-panel">
         <summary>Products</summary>
         <div class="admin-section">
           <p class="hint">These appear as options in the Product dropdown on the TDS Generator tab.</p>
@@ -484,7 +485,7 @@
         </div>
       </details>
 
-      <details class="admin-panel" open>
+      <details class="admin-panel">
         <summary>Conditions &amp; remarks rules</summary>
         <div class="admin-section">
           <p class="hint">Rules are checked against the current TDS selection; every rule whose Product/Alloy/Temper/Thickness/Width all match gets applied. Rules sharing the same Label combine their Remarks into one row (in rule order) — e.g. a thickness-based Flatness note and a width-based Flatness note can both show together. "Any" matches everything for that field.</p>
@@ -493,7 +494,7 @@
         </div>
       </details>
 
-      <details class="admin-panel" open>
+      <details class="admin-panel">
         <summary>Alloys &amp; Tempers</summary>
         <div class="admin-section">
           <p class="hint">Chemistry and the list of tempers per alloy. Click an alloy's header to collapse or expand it. Thickness bands (tensile, yield, elongation, bend by mm range) live in the "Thickness Bands" section below.</p>
@@ -534,7 +535,7 @@
         </div>
       </details>
 
-      <details class="admin-panel" open>
+      <details class="admin-panel">
         <summary>Thickness Bands</summary>
         <div class="admin-section">
           <p class="hint">Tensile, yield, elongation, and bend by thickness range — the same set of ranges applies to every alloy, since ANSI/ASTM gauge steps are standardized across non-aerospace alloys. Edit the shared ranges once here; each alloy below just fills in its own values against them.</p>
@@ -652,6 +653,39 @@ const in2mm = inch => inch*25.4;
 // with write access to that storage, not just people who passed the Admin passphrase.
 function esc(s){
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// Native confirm()/prompt() dialogs get permanently silenced by the browser after a
+// page shows enough of them ("Prevent this page from creating additional dialogs") —
+// once that happens every future confirm() call just returns false with zero visible
+// feedback, so a delete button looks completely dead with no clue why (same root
+// cause as the earlier "+ Add temper" prompt() bug). This makes a destructive button
+// require two clicks within a few seconds instead, with a clear "click again to
+// confirm" visual state, so it can never be silently defeated that way.
+function armConfirmButton(btn, { armedText, armedTitle, onConfirm, timeoutMs = 3000 }){
+  const originalText = btn.textContent;
+  const originalTitle = btn.title;
+  let armed = false, timer = null;
+  const disarm = ()=>{
+    armed = false;
+    btn.textContent = originalText;
+    btn.title = originalTitle;
+    btn.classList.remove('confirm-armed');
+    clearTimeout(timer);
+  };
+  btn.addEventListener('click', (e)=>{
+    if(e) e.stopPropagation();
+    if(!armed){
+      armed = true;
+      btn.textContent = armedText;
+      if(armedTitle) btn.title = armedTitle;
+      btn.classList.add('confirm-armed');
+      timer = setTimeout(disarm, timeoutMs);
+      return;
+    }
+    disarm();
+    onConfirm();
+  });
 }
 
 const DEFAULT_PRODUCTS = [
@@ -1420,7 +1454,7 @@ function renderAlloyTempersAdmin(){
     const alloy = DATA.alloys[ak];
     const details = document.createElement('details');
     details.className = "alloy-collapse";
-    details.open = alloyTempersCollapseState[ak] ?? true;
+    details.open = alloyTempersCollapseState[ak] ?? false;
     details.addEventListener('toggle', ()=>{ alloyTempersCollapseState[ak] = details.open; });
 
     const temperChips = Object.keys(alloy.tempers).map(tk=>{
@@ -1503,16 +1537,17 @@ function renderAlloyTempersAdmin(){
       else if(e.key === 'Escape'){ closeNewTemperForm(); }
     });
     details.querySelectorAll('[data-rm-temper]').forEach(btn=>{
-      btn.addEventListener('click', (ev)=>{
-        ev.stopPropagation();
-        const tk = btn.dataset.rmTemper;
-        const remaining = Object.keys(alloy.tempers).length;
-        const msg = remaining <= 1
-          ? `Remove temper "${tk}"? It's the only temper left on ${alloy.label} — removing it leaves this alloy with nothing produced until you add another temper.`
-          : `Remove temper "${tk}" from ${alloy.label}? This deletes its mechanical property values across all thickness bands (e.g. use this when a temper/series genuinely isn't produced, like AA5005's H3x series). Any existing rule referencing this exact temper will simply stop matching — it isn't deleted, just inert.`;
-        if(!confirm(msg)) return;
-        delete alloy.tempers[tk];
-        renderAlloyAdmin(); buildLibraryTable(); populateAlloySelect(); populateCmpAlloySel(); renderCmpPairList(); render();
+      const tk = btn.dataset.rmTemper;
+      const remaining = Object.keys(alloy.tempers).length;
+      const title = remaining <= 1
+        ? `It's the only temper left on ${alloy.label} — removing it leaves this alloy with nothing produced until you add another temper.`
+        : `Deletes its mechanical property values across all thickness bands. Any existing rule referencing this exact temper will simply stop matching — it isn't deleted, just inert.`;
+      armConfirmButton(btn, {
+        armedText: '✓?', armedTitle: `Click again to remove "${tk}". ${title}`,
+        onConfirm: ()=>{
+          delete alloy.tempers[tk];
+          renderAlloyAdmin(); buildLibraryTable(); populateAlloySelect(); populateCmpAlloySel(); renderCmpPairList(); render();
+        }
       });
     });
 
@@ -1596,10 +1631,12 @@ function renderSharedRangesAdmin(){
       r.max = newMax;
       renderSharedRangesAdmin(); renderThicknessBandsAdmin(); buildLibraryTable(); render();
     });
-    tr.querySelector('.danger-btn').addEventListener('click', ()=>{
-      if(!confirm(`Remove the ${r.min}–${r.max} mm range? Any alloy values stored against it become inactive (not deleted, just unused) unless you re-add an identical range.`)) return;
-      DATA.thicknessRanges.splice(idx,1);
-      renderSharedRangesAdmin(); renderThicknessBandsAdmin(); buildLibraryTable(); render();
+    armConfirmButton(tr.querySelector('.danger-btn'), {
+      armedText: 'Confirm', armedTitle: `Click again to remove the ${r.min}–${r.max} mm range. Any alloy values stored against it become inactive (not deleted, just unused) unless you re-add an identical range.`,
+      onConfirm: ()=>{
+        DATA.thicknessRanges.splice(idx,1);
+        renderSharedRangesAdmin(); renderThicknessBandsAdmin(); buildLibraryTable(); render();
+      }
     });
     body.appendChild(tr);
   });
@@ -1620,7 +1657,7 @@ function renderThicknessBandsAdmin(){
     const alloy = DATA.alloys[ak];
     const details = document.createElement('details');
     details.className = "alloy-collapse";
-    details.open = thicknessBandsCollapseState[ak] ?? true;
+    details.open = thicknessBandsCollapseState[ak] ?? false;
     details.addEventListener('toggle', ()=>{ thicknessBandsCollapseState[ak] = details.open; });
 
     let html = `<summary>${esc(alloy.label)} <span style="color:#999;font-weight:400;">(${esc(ak)})</span></summary><div class="alloy-collapse-body">`;
@@ -1749,10 +1786,12 @@ function renderTemperExtraRangesRows(wrap, alloyKey, temperKey){
       sortTemperExtraRanges(alloyKey, temperKey);
       renderThicknessBandsAdmin(); buildLibraryTable(); render();
     });
-    tr.querySelector('.danger-btn').addEventListener('click', ()=>{
-      if(!confirm(`Remove the ${r.min}–${r.max} mm band from ${alloy.label} ${temperKey}? Any values stored against it become inactive (not deleted, just unused) unless you re-add an identical band.`)) return;
-      temper.extraRanges.splice(idx,1);
-      renderThicknessBandsAdmin(); buildLibraryTable(); render();
+    armConfirmButton(tr.querySelector('.danger-btn'), {
+      armedText: 'Confirm', armedTitle: `Click again to remove the ${r.min}–${r.max} mm band from ${alloy.label} ${temperKey}. Any values stored against it become inactive (not deleted, just unused) unless you re-add an identical band.`,
+      onConfirm: ()=>{
+        temper.extraRanges.splice(idx,1);
+        renderThicknessBandsAdmin(); buildLibraryTable(); render();
+      }
     });
     body.appendChild(tr);
   });
@@ -2090,11 +2129,14 @@ async function saveMasterData(){
   }
 }
 document.getElementById('btnSaveMaster').addEventListener('click', saveMasterData);
-document.getElementById('btnResetMaster').addEventListener('click', ()=>{
-  if(!confirm("Reset all master data (products, alloys, rules) to factory defaults? This cannot be undone unless you have saved a copy elsewhere.")) return;
-  DATA = freshDefaults();
-  populateAll();
-  saveMasterData();
+armConfirmButton(document.getElementById('btnResetMaster'), {
+  armedText: 'Click again to confirm reset',
+  armedTitle: 'This cannot be undone unless you have saved a copy elsewhere.',
+  onConfirm: ()=>{
+    DATA = freshDefaults();
+    populateAll();
+    saveMasterData();
+  }
 });
 
 async function loadMasterData(){
