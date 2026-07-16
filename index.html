@@ -87,6 +87,7 @@
   table.libtable td.locked{color:#555; background:#fafafa;}
   table.libtable input{width:100%; padding:2px 4px; font-size:11px; border:1px solid var(--alu-2);}
   .unverified{color:var(--brass); font-style:italic;}
+  .own-band-tag{font-style:normal; color:var(--brass); font-weight:700; font-size:9px; text-transform:uppercase; letter-spacing:0.3px;}
 
   .disclaimer{margin-top:18px; font-size:10.5px; line-height:1.5; color:#7a7a72; border-left:3px solid var(--brass-light); padding:8px 10px; background:#fdfaf4;}
 
@@ -791,11 +792,16 @@ const DEFAULT_ALLOYS = {
       "H12":{ values:{ R1:bv(), R2:v(124,166,97,4,null), R3:v(124,166,97,4,null), R4:v(124,166,97,4,null), R5:v(124,166,97,4,null), R6:v(124,166,97,4,null) } },
       "H14":{ values:{ R1:bv(), R2:v(145,186,117,1,null), R3:v(145,186,117,1,null), R4:v(145,186,117,2,null), R5:v(145,186,117,3,null), R6:bv() } },
       "H16":{ values:{ R1:v(165,207,138,2,null), R2:v(165,207,138,2,null), R3:v(165,207,138,2,null), R4:v(165,207,138,2,null), R5:v(165,207,138,2,null), R6:v(165,207,138,2,null) } },
-      "H18":{ values:{ R1:bv(), R2:v(186,null,null,null,null,false), R3:v(186,null,null,null,null,false), R4:v(186,null,null,null,null,false), R5:v(186,null,null,null,null,false), R6:bv() } }
+      "H18":{ values:{ R1:bv(), R2:v(186,null,null,null,null,false), R3:v(186,null,null,null,null,false), R4:v(186,null,null,null,null,false), R5:v(186,null,null,null,null,false), R6:bv() } },
       // H32/H34/H36/H38 (and H22/H24/H26/H28, which for this alloy specifically are
       // ASTM Note C aliases of the H3x series, not H1x) intentionally omitted — this
       // alloy's H3x series is not produced. See git history if that changes.
-    }
+      // O (annealed) — produced in heavier gauge than any H-temper here, per the
+      // extra thickness bands the admin adds in the Thickness Bands section. Values
+      // left blank pending entry from a licensed ASTM B209 copy.
+      "O":{ values:{ R1:bv(), R2:bv(), R3:bv(), R4:bv(), R5:bv(), R6:bv() } }
+    },
+    extraRanges: []
   }
 };
 
@@ -866,9 +872,20 @@ let adminUnlockedFlag = false;
 /* =====================================================================
    LOOKUP HELPERS
    ===================================================================== */
+// Most thickness ranges are shared across every alloy (standardized ANSI/ASTM gauge
+// steps), but some alloy/temper combinations are available in gauges no other alloy
+// is — e.g. AA5005 O temper going up to much heavier plate than any H-temper coil.
+// alloy.extraRanges holds those alloy-specific bands, additive to the shared list,
+// invisible to every other alloy.
+function getRangesForAlloy(alloyKey){
+  const alloy = DATA.alloys[alloyKey];
+  const extra = (alloy && alloy.extraRanges) || [];
+  return [...DATA.thicknessRanges, ...extra].sort((a,b)=>a.min-b.min);
+}
+
 function findBand(alloyKey, temperKey, thicknessMM){
   const t = DATA.alloys[alloyKey]?.tempers?.[temperKey];
-  const ranges = DATA.thicknessRanges;
+  const ranges = getRangesForAlloy(alloyKey);
   if(!t || !t.values || !ranges || !ranges.length) return null;
   let range = ranges.find(r => thicknessMM >= r.min && thicknessMM <= r.max);
   let outOfRange = false;
@@ -1029,7 +1046,7 @@ function buildLibraryTable(){
       const temper = alloy.tempers[tk];
       const noteAttr = temper.equivNote ? ` title="${esc(temper.equivNote)}"` : "";
       const temperCell = temper.equivNote ? `${esc(tk)} <span class="unverified" style="font-size:9px;">ⓘ</span>` : esc(tk);
-      DATA.thicknessRanges.forEach(range=>{
+      getRangesForAlloy(ak).forEach(range=>{
         const b = temper.values[range.id];
         if(!b || (b.tensileMin==null && b.yieldMin==null && b.elong==null && b.bend==null)) return; // nothing on file for this range — skip rather than show an all-blank row
         const tr = document.createElement('tr');
@@ -1512,8 +1529,29 @@ function sortThicknessRanges(){
 // both — sharing just a boundary point (e.g. 0–0.3 and 0.3–0.5) is fine, since
 // that's how the default ranges are already set up and findBand()'s inclusive
 // bounds resolve it via array order.
+function rangesClash(a, b){ return a.min < b.max && b.min < a.max; }
+// A new/edited SHARED range must not clash with any alloy's own extra ranges either
+// — since every alloy's lookup set is shared+its own extras combined, a shared-range
+// change that clashes with even one alloy's extra range would create ambiguity there.
 function findRangeOverlap(candidate, excludeId){
-  return DATA.thicknessRanges.find(r => r.id !== excludeId && r.min < candidate.max && candidate.min < r.max);
+  const clash = DATA.thicknessRanges.find(r => r.id !== excludeId && rangesClash(r, candidate));
+  if(clash) return clash;
+  for(const ak of Object.keys(DATA.alloys)){
+    const extra = (DATA.alloys[ak].extraRanges) || [];
+    const c = extra.find(r => r.id !== excludeId && rangesClash(r, candidate));
+    if(c) return c;
+  }
+  return null;
+}
+// A new/edited EXTRA range for one specific alloy only needs to avoid clashing with
+// that alloy's own combined set (shared + its other extras) — other alloys' extras
+// are invisible to this one, so they're irrelevant here.
+function findRangeOverlapForAlloy(alloyKey, candidate, excludeId){
+  return getRangesForAlloy(alloyKey).find(r => r.id !== excludeId && rangesClash(r, candidate));
+}
+function sortAlloyExtraRanges(alloyKey){
+  const alloy = DATA.alloys[alloyKey];
+  if(alloy && alloy.extraRanges) alloy.extraRanges.sort((a,b)=>a.min-b.min);
 }
 
 function renderSharedRangesAdmin(){
@@ -1577,12 +1615,28 @@ function renderThicknessBandsAdmin(){
   list.innerHTML = "";
   Object.keys(DATA.alloys).forEach(ak=>{
     const alloy = DATA.alloys[ak];
+    if(!alloy.extraRanges) alloy.extraRanges = [];
     const details = document.createElement('details');
     details.className = "alloy-collapse";
     details.open = thicknessBandsCollapseState[ak] ?? true;
     details.addEventListener('toggle', ()=>{ thicknessBandsCollapseState[ak] = details.open; });
 
+    const combinedRanges = getRangesForAlloy(ak);
+    const extraIds = new Set(alloy.extraRanges.map(r=>r.id));
+
     let html = `<summary>${esc(alloy.label)} <span style="color:#999;font-weight:400;">(${esc(ak)})</span></summary><div class="alloy-collapse-body">`;
+
+    html += `<div style="margin-bottom:14px;padding:10px;border:1px dashed var(--brass-light);border-radius:var(--radius);background:#fdfaf4;">
+        <span class="field-label" style="color:var(--brass);">Extra thickness bands — ${esc(alloy.label)} only</span>
+        <p class="hint" style="margin-top:2px;">Bands added here apply only to this alloy — e.g. a temper produced in a heavier gauge than any other alloy comes in. They don't appear on other alloys' tables or the Shared Ranges list above.</p>
+        <table class="band-table" style="margin-top:6px;">
+          <thead><tr><th>Min (mm)</th><th>Max (mm)</th><th></th></tr></thead>
+          <tbody class="extra-range-body"></tbody>
+        </table>
+        <button type="button" class="ghost extra-range-add" style="margin-top:4px;">+ Add band for this alloy</button>
+        <div class="field-warn extra-range-err" style="margin-top:6px;"></div>
+      </div>`;
+
     Object.keys(alloy.tempers).forEach(tk=>{
       html += `<div style="margin-bottom:14px;">
         <strong style="font-size:11.5px;">Temper: ${esc(tk)}</strong>
@@ -1592,11 +1646,12 @@ function renderThicknessBandsAdmin(){
             <th>Yield min (MPa)</th><th>Elongation (%)</th><th>Bend</th>
           </tr></thead>
           <tbody>`;
-      DATA.thicknessRanges.forEach(range=>{
+      combinedRanges.forEach(range=>{
         if(!alloy.tempers[tk].values[range.id]) alloy.tempers[tk].values[range.id] = bv();
         const b = alloy.tempers[tk].values[range.id];
+        const ownTag = extraIds.has(range.id) ? ` <span class="own-band-tag" title="Alloy-specific band, not shared with other alloys">own</span>` : '';
         html += `<tr data-alloy="${esc(ak)}" data-temper="${esc(tk)}" data-range="${esc(range.id)}">
-            <td style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#888;white-space:nowrap;">${range.min}–${range.max}</td>
+            <td style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#888;white-space:nowrap;">${range.min}–${range.max}${ownTag}</td>
             <td><input type="number" class="b-tmin" value="${b.tensileMin==null?'':b.tensileMin}"></td>
             <td><input type="number" class="b-tmax" value="${b.tensileMax==null?'':b.tensileMax}"></td>
             <td><input type="number" class="b-ymin" value="${b.yieldMin==null?'':b.yieldMin}"></td>
@@ -1630,7 +1685,68 @@ function renderThicknessBandsAdmin(){
       rowEl.querySelectorAll('input').forEach(el=>el.addEventListener('change', upd));
     });
 
+    renderAlloyExtraRangesRows(details, ak);
+    details.querySelector('.extra-range-add').addEventListener('click', ()=>{
+      const combined = getRangesForAlloy(ak);
+      const newMin = combined.length ? Math.max(...combined.map(r=>r.max)) : 0;
+      alloy.extraRanges.push({ id:'E'+Date.now(), min:newMin, max:newMin+1 });
+      sortAlloyExtraRanges(ak);
+      renderThicknessBandsAdmin(); buildLibraryTable(); render();
+    });
+
     list.appendChild(details);
+  });
+}
+
+function renderAlloyExtraRangesRows(details, alloyKey){
+  const alloy = DATA.alloys[alloyKey];
+  const body = details.querySelector('.extra-range-body');
+  const errEl = details.querySelector('.extra-range-err');
+  body.innerHTML = "";
+  if(!alloy.extraRanges.length){
+    body.innerHTML = `<tr><td colspan="3" style="color:#999;font-style:italic;font-size:11px;">None yet.</td></tr>`;
+  }
+  alloy.extraRanges.forEach((r,idx)=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="number" class="er-min" value="${r.min}" step="0.01"></td>
+      <td><input type="number" class="er-max" value="${r.max}" step="0.01"></td>
+      <td><button type="button" class="danger-btn">✕</button></td>`;
+    const minInput = tr.querySelector('.er-min');
+    const maxInput = tr.querySelector('.er-max');
+    const rejectEdit = (input, msg)=>{
+      input.value = input === minInput ? r.min : r.max;
+      input.classList.add('invalid');
+      errEl.textContent = msg;
+      errEl.classList.add('show');
+      setTimeout(()=>input.classList.remove('invalid'), 2000);
+    };
+    minInput.addEventListener('change', e=>{
+      const newMin = parseFloat(e.target.value);
+      if(isNaN(newMin)){ rejectEdit(minInput, "Enter a number for Min."); return; }
+      if(newMin >= r.max){ rejectEdit(minInput, `Min must be less than this row's Max (${r.max} mm).`); return; }
+      const clash = findRangeOverlapForAlloy(alloyKey, {min:newMin, max:r.max}, r.id);
+      if(clash){ rejectEdit(minInput, `${newMin}–${r.max} mm would overlap the existing ${clash.min}–${clash.max} mm band.`); return; }
+      r.min = newMin;
+      sortAlloyExtraRanges(alloyKey);
+      renderThicknessBandsAdmin(); buildLibraryTable(); render();
+    });
+    maxInput.addEventListener('change', e=>{
+      const newMax = parseFloat(e.target.value);
+      if(isNaN(newMax)){ rejectEdit(maxInput, "Enter a number for Max."); return; }
+      if(newMax <= r.min){ rejectEdit(maxInput, `Max must be greater than this row's Min (${r.min} mm).`); return; }
+      const clash = findRangeOverlapForAlloy(alloyKey, {min:r.min, max:newMax}, r.id);
+      if(clash){ rejectEdit(maxInput, `${r.min}–${newMax} mm would overlap the existing ${clash.min}–${clash.max} mm band.`); return; }
+      r.max = newMax;
+      sortAlloyExtraRanges(alloyKey);
+      renderThicknessBandsAdmin(); buildLibraryTable(); render();
+    });
+    tr.querySelector('.danger-btn').addEventListener('click', ()=>{
+      if(!confirm(`Remove the ${r.min}–${r.max} mm band from ${alloy.label}? Any temper values stored against it become inactive (not deleted, just unused) unless you re-add an identical band.`)) return;
+      alloy.extraRanges.splice(idx,1);
+      renderThicknessBandsAdmin(); buildLibraryTable(); render();
+    });
+    body.appendChild(tr);
   });
 }
 
@@ -1657,7 +1773,8 @@ document.getElementById('btnCreateAlloy').addEventListener('click', ()=>{
       each:document.getElementById('naEach').value||'–', total:document.getElementById('naTotal').value||'–',
       Al:document.getElementById('naAl').value||'remainder'
     },
-    tempers: { [temperName]: { values: {} } }
+    tempers: { [temperName]: { values: {} } },
+    extraRanges: []
   };
   ['naKey','naLabel','naSi','naFe','naCu','naMn','naMg','naCr','naZn','naTi','naEach','naTotal','naAl','naTemper'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('naStandard').value = "ASTM B209/B209M-21a";
