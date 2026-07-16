@@ -193,9 +193,9 @@
   .letterhead img{display:block; width:100%; height:auto;}
   .letterhead .addr-strip{font-size:10.5px; color:#666; line-height:1.5; text-align:center; padding:8px 32px; border-top:1px solid var(--line);}
 
-  .doc-title{background:linear-gradient(90deg,var(--steel-dark),var(--steel)); color:#fff; padding:12px 32px; display:flex; justify-content:space-between; align-items:center;}
-  .doc-title h3{margin:0; font-family:'Barlow Semi Condensed',sans-serif; font-weight:700; font-size:16px; text-transform:uppercase; letter-spacing:0.5px;}
-  .doc-title .ref{font-family:'IBM Plex Mono',monospace; font-size:11px; opacity:0.9; text-align:right;}
+  .doc-title{background:#fff; color:var(--ink); padding:12px 32px; display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid var(--ink);}
+  .doc-title h3{margin:0; font-family:'Barlow Semi Condensed',sans-serif; font-weight:700; font-size:16px; text-transform:uppercase; letter-spacing:0.5px; color:var(--steel-dark);}
+  .doc-title .ref{font-family:'IBM Plex Mono',monospace; font-size:11px; color:#666; text-align:right;}
 
   .meta-strip{display:grid; grid-template-columns:repeat(4,1fr); gap:0; border-bottom:1px solid var(--line);}
   .meta-strip div{padding:10px 14px; border-right:1px solid var(--line);}
@@ -543,6 +543,7 @@
             <tbody id="sharedRangesBody"></tbody>
           </table>
           <button type="button" class="ghost" id="btnAddRange" style="margin-top:4px;">+ Add range</button>
+          <div class="field-warn" id="sharedRangesError" style="margin-top:6px;"></div>
 
           <p class="note" style="font-weight:600;margin-top:16px;">Per-alloy values against the shared ranges</p>
           <div id="thicknessBandsList"></div>
@@ -1501,8 +1502,25 @@ function renderAlloyTempersAdmin(){
   });
 }
 
+// Ranges are kept sorted by min at all times so the shared-ranges table, the
+// per-alloy Thickness Bands editor, and the read-only Library all list them in
+// ascending order without needing to sort at each display site.
+function sortThicknessRanges(){
+  DATA.thicknessRanges.sort((a,b)=>a.min-b.min);
+}
+// Two ranges "interfere" if there's a span of thickness values that would match
+// both — sharing just a boundary point (e.g. 0–0.3 and 0.3–0.5) is fine, since
+// that's how the default ranges are already set up and findBand()'s inclusive
+// bounds resolve it via array order.
+function findRangeOverlap(candidate, excludeId){
+  return DATA.thicknessRanges.find(r => r.id !== excludeId && r.min < candidate.max && candidate.min < r.max);
+}
+
 function renderSharedRangesAdmin(){
+  sortThicknessRanges();
   const body = document.getElementById('sharedRangesBody');
+  const errEl = document.getElementById('sharedRangesError');
+  errEl.classList.remove('show');
   body.innerHTML = "";
   DATA.thicknessRanges.forEach((r,idx)=>{
     const tr = document.createElement('tr');
@@ -1510,8 +1528,33 @@ function renderSharedRangesAdmin(){
       <td><input type="number" class="sr-min" value="${r.min}" step="0.01"></td>
       <td><input type="number" class="sr-max" value="${r.max}" step="0.01"></td>
       <td><button type="button" class="danger-btn">✕</button></td>`;
-    tr.querySelector('.sr-min').addEventListener('change', e=>{ r.min = parseFloat(e.target.value)||0; buildLibraryTable(); render(); });
-    tr.querySelector('.sr-max').addEventListener('change', e=>{ r.max = parseFloat(e.target.value)||0; buildLibraryTable(); render(); });
+    const minInput = tr.querySelector('.sr-min');
+    const maxInput = tr.querySelector('.sr-max');
+    const rejectEdit = (input, msg)=>{
+      input.value = input === minInput ? r.min : r.max;
+      input.classList.add('invalid');
+      errEl.textContent = msg;
+      errEl.classList.add('show');
+      setTimeout(()=>input.classList.remove('invalid'), 2000);
+    };
+    minInput.addEventListener('change', e=>{
+      const newMin = parseFloat(e.target.value);
+      if(isNaN(newMin)){ rejectEdit(minInput, "Enter a number for Min."); return; }
+      if(newMin >= r.max){ rejectEdit(minInput, `Min must be less than this row's Max (${r.max} mm).`); return; }
+      const clash = findRangeOverlap({min:newMin, max:r.max}, r.id);
+      if(clash){ rejectEdit(minInput, `${newMin}–${r.max} mm would overlap the existing ${clash.min}–${clash.max} mm range.`); return; }
+      r.min = newMin;
+      renderSharedRangesAdmin(); renderThicknessBandsAdmin(); buildLibraryTable(); render();
+    });
+    maxInput.addEventListener('change', e=>{
+      const newMax = parseFloat(e.target.value);
+      if(isNaN(newMax)){ rejectEdit(maxInput, "Enter a number for Max."); return; }
+      if(newMax <= r.min){ rejectEdit(maxInput, `Max must be greater than this row's Min (${r.min} mm).`); return; }
+      const clash = findRangeOverlap({min:r.min, max:newMax}, r.id);
+      if(clash){ rejectEdit(maxInput, `${r.min}–${newMax} mm would overlap the existing ${clash.min}–${clash.max} mm range.`); return; }
+      r.max = newMax;
+      renderSharedRangesAdmin(); renderThicknessBandsAdmin(); buildLibraryTable(); render();
+    });
     tr.querySelector('.danger-btn').addEventListener('click', ()=>{
       if(!confirm(`Remove the ${r.min}–${r.max} mm range? Any alloy values stored against it become inactive (not deleted, just unused) unless you re-add an identical range.`)) return;
       DATA.thicknessRanges.splice(idx,1);
@@ -1521,9 +1564,11 @@ function renderSharedRangesAdmin(){
   });
 }
 document.getElementById('btnAddRange').addEventListener('click', ()=>{
-  const last = DATA.thicknessRanges[DATA.thicknessRanges.length-1];
-  const newMin = last ? last.max : 0;
+  // Starts exactly at the current overall max, so the new range can never overlap
+  // an existing one regardless of array order.
+  const newMin = DATA.thicknessRanges.length ? Math.max(...DATA.thicknessRanges.map(r=>r.max)) : 0;
   DATA.thicknessRanges.push({ id:'R'+Date.now(), min:newMin, max:newMin+1 });
+  sortThicknessRanges();
   renderSharedRangesAdmin(); renderThicknessBandsAdmin(); buildLibraryTable(); render();
 });
 
@@ -2046,15 +2091,31 @@ async function generatePdf(){
     const imgHeight = canvas.height * imgWidth / canvas.width;
     const imgData = canvas.toDataURL('image/png');
 
-    let heightLeft = imgHeight;
-    let position = 0;
-    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-    heightLeft -= pageHeight;
-    while(heightLeft > 0){
-      position = heightLeft - imgHeight;
-      pdf.addPage();
+    // A TDS/comparator sheet is normally short enough to fit one page. If it's only
+    // modestly taller than one page (e.g. a couple of extra remark rows), scale the
+    // whole thing down to fit on a single page rather than spilling a sliver of
+    // content onto an almost-entirely-blank second page. Only fall back to true
+    // multi-page pagination for genuinely long content (e.g. a comparator with many
+    // alloys added), where shrinking to fit one page would make the text illegibly
+    // small.
+    const SINGLE_PAGE_FIT_THRESHOLD = 1.35; // allow up to 35% overflow before paginating instead
+    if(imgHeight <= pageHeight * SINGLE_PAGE_FIT_THRESHOLD){
+      const scale = Math.min(1, pageHeight / imgHeight);
+      const renderWidth = imgWidth * scale;
+      const renderHeight = imgHeight * scale;
+      const xOffset = (pageWidth - renderWidth) / 2;
+      pdf.addImage(imgData, 'PNG', xOffset, 0, renderWidth, renderHeight);
+    } else {
+      let heightLeft = imgHeight;
+      let position = 0;
       pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
       heightLeft -= pageHeight;
+      while(heightLeft > 0){
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
     }
 
     const refText = (document.getElementById('refOut')?.textContent || 'TDS').replace(/[^a-zA-Z0-9_-]/g,'_');
