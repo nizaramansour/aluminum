@@ -1177,7 +1177,7 @@ function populateAll(){
   populateAlloySelect();
   buildLibraryTable();
   populateCmpAlloySel(); renderCmpPairList();
-  if(canEdit('master_data')) renderAdminPanels();
+  if(canEditAnyMasterData()) renderAdminPanels();
 }
 
 /* =====================================================================
@@ -1481,7 +1481,7 @@ function setMode(newMode){
   adminControls.classList.toggle('hidden', mode!=='admin');
   tdsBody.classList.toggle('hidden', mode!=='tds');
   compareBody.classList.toggle('hidden', mode!=='compare');
-  const masterDataUnlocked = mode==='admin' && canEdit('master_data');
+  const masterDataUnlocked = mode==='admin' && canEditAnyMasterData();
   const rolesAdminVisible = mode==='admin' && (canRunScript('manage_roles') || isSuperAdmin(currentUser));
   const usersAdminVisible = mode==='admin' && (canRunScript('manage_users') || isSuperAdmin(currentUser));
   // When a role has rights to more than one Admin section, show one at a time
@@ -1543,12 +1543,12 @@ document.getElementById('adminSubTabUsers').addEventListener('click', ()=>{ admi
    ADMIN: PRODUCTS, RULES, ALLOYS EDITORS
    ===================================================================== */
 function renderAdminPanels(){
-  document.getElementById('productsPanel').classList.toggle('hidden', !fieldVisible('master_data','products'));
-  document.getElementById('rulesPanel').classList.toggle('hidden', !fieldVisible('master_data','rules'));
-  document.getElementById('alloyPropertiesPanel').classList.toggle('hidden', !fieldVisible('master_data','alloy_properties'));
-  if(fieldVisible('master_data','products')) renderProductAdmin();
-  if(fieldVisible('master_data','rules')) renderRuleAdmin();
-  if(fieldVisible('master_data','alloy_properties')) renderAlloyAdmin();
+  document.getElementById('productsPanel').classList.toggle('hidden', !canViewObj('products'));
+  document.getElementById('rulesPanel').classList.toggle('hidden', !canViewObj('rules'));
+  document.getElementById('alloyPropertiesPanel').classList.toggle('hidden', !canViewObj('alloy_properties'));
+  if(canViewObj('products')) renderProductAdmin();
+  if(canViewObj('rules')) renderRuleAdmin();
+  if(canViewObj('alloy_properties')) renderAlloyAdmin();
 }
 
 /* =====================================================================
@@ -1558,7 +1558,6 @@ function renderAdminPanels(){
    All of this is data in roles/permission_objects/role_*_permissions - adding
    a role or changing who can do what here never needs a code change.
    ===================================================================== */
-const FIELD_LABELS = { products: 'Products', rules: 'Conditions & Remarks Rules', alloy_properties: 'Alloy Properties' };
 let selectedRoleId = null;
 
 async function renderRolesPermissionsPanel(){
@@ -1597,21 +1596,14 @@ async function renderRolesPermissionsPanel(){
   if(!selectedRoleId){ editor.innerHTML = '<p class="hint">No roles yet — add one above.</p>'; return; }
   const role = roles.find(r=>r.id===selectedRoleId);
 
-  const [{ data: objects }, { data: objPerms }, { data: scriptPerms }, { data: fieldPerms }, { data: masterFields }] = await Promise.all([
+  const [{ data: objects }, { data: objPerms }, { data: scriptPerms }] = await Promise.all([
     supabaseClient.from('permission_objects').select('key,label,kind,description').order('kind', { ascending: true }),
     supabaseClient.from('role_object_permissions').select('object_key,can_view,can_create,can_edit,can_delete').eq('role_id', selectedRoleId),
-    supabaseClient.from('role_script_permissions').select('script_key,can_run').eq('role_id', selectedRoleId),
-    supabaseClient.from('role_field_permissions').select('object_key,field_key,visible').eq('role_id', selectedRoleId),
-    supabaseClient.from('role_field_permissions').select('field_key').eq('object_key','master_data')
+    supabaseClient.from('role_script_permissions').select('script_key,can_run').eq('role_id', selectedRoleId)
   ]);
 
   const objMap = {}; (objPerms||[]).forEach(r=>{ objMap[r.object_key] = r; });
   const scriptMap = {}; (scriptPerms||[]).forEach(r=>{ scriptMap[r.script_key] = r.can_run; });
-  const fieldMap = {}; (fieldPerms||[]).forEach(r=>{ (fieldMap[r.object_key] ||= {})[r.field_key] = r.visible; });
-  // Field list is discovered from whatever field_keys already exist for this
-  // object across any role, rather than a hardcoded JS list - so a future
-  // migration that adds a new master_data field shows up here automatically.
-  const knownFields = [...new Set((masterFields||[]).map(r=>r.field_key))];
 
   const dataObjects = (objects||[]).filter(o=>o.kind==='data');
   const scriptObjects = (objects||[]).filter(o=>o.kind==='script');
@@ -1639,18 +1631,6 @@ async function renderRolesPermissionsPanel(){
       <td style="text-align:center;"><input type="checkbox" data-obj="${esc(o.key)}" data-action="edit" ${perm.can_edit?'checked':''}></td>
       <td style="text-align:center;"><input type="checkbox" data-obj="${esc(o.key)}" data-action="delete" ${perm.can_delete?'checked':''}></td>`;
     objBody.appendChild(tr);
-    if(o.key === 'master_data' && knownFields.length){
-      const fieldTr = document.createElement('tr');
-      const fieldCell = document.createElement('td');
-      fieldCell.colSpan = 5;
-      fieldCell.style.cssText = 'padding:6px 8px 10px 20px;background:#fafafa;';
-      fieldCell.innerHTML = '<div class="hint" style="margin:0 0 6px;">Sections visible within Master Data (only meaningful alongside View above):</div>' +
-        knownFields.map(fk=>`<label style="display:inline-flex;align-items:center;gap:5px;margin-right:16px;font-size:11.5px;">
-          <input type="checkbox" data-field-obj="master_data" data-field="${esc(fk)}" ${(fieldMap.master_data && fieldMap.master_data[fk])?'checked':''}> ${esc(FIELD_LABELS[fk] || fk)}
-        </label>`).join('');
-      fieldTr.appendChild(fieldCell);
-      objBody.appendChild(fieldTr);
-    }
   });
   objTable.appendChild(objBody);
   editor.appendChild(objTable);
@@ -1691,16 +1671,11 @@ async function renderRolesPermissionsPanel(){
       role_id: selectedRoleId, script_key: o.key,
       can_run: editor.querySelector(`[data-script="${o.key}"]`).checked
     }));
-    const fieldRows = knownFields.map(fk=>({
-      role_id: selectedRoleId, object_key: 'master_data', field_key: fk,
-      visible: editor.querySelector(`[data-field-obj="master_data"][data-field="${fk}"]`).checked
-    }));
-    const [r1, r2, r3] = await Promise.all([
+    const [r1, r2] = await Promise.all([
       supabaseClient.from('role_object_permissions').upsert(objRows, { onConflict: 'role_id,object_key' }),
-      supabaseClient.from('role_script_permissions').upsert(scriptRows, { onConflict: 'role_id,script_key' }),
-      fieldRows.length ? supabaseClient.from('role_field_permissions').upsert(fieldRows, { onConflict: 'role_id,object_key,field_key' }) : Promise.resolve({error:null})
+      supabaseClient.from('role_script_permissions').upsert(scriptRows, { onConflict: 'role_id,script_key' })
     ]);
-    const err = r1.error || r2.error || r3.error;
+    const err = r1.error || r2.error;
     saveBtn.disabled = false;
     if(err){ saveStatus.textContent = 'Save failed: ' + err.message; saveStatus.style.color = 'var(--danger)'; return; }
     saveStatus.textContent = '✓ Saved';
@@ -2132,11 +2107,11 @@ document.getElementById('btnCreateAlloy').addEventListener('click', ()=>{
 
 /* =====================================================================
    ADMIN ACCESS + PERSISTENCE
-   Access is role-based (see canEdit('master_data')), not a passphrase — set
+   Access is role-based (see canEditAnyMasterData()), not a passphrase — set
    once the signed-in user's role and its permissions are known.
    ===================================================================== */
 function refreshAdminAccessUi(){
-  if(canEdit('master_data')){
+  if(canEditAnyMasterData()){
     libTag.textContent = "QC master · editable via Admin tab";
     libTag.classList.add('admin');
     renderAdminPanels();
@@ -2391,30 +2366,33 @@ function isSuperAdmin(user){
 }
 
 // Generic, FileMaker-style permission system: a role (privilege set) grants
-// view/create/edit/delete on "objects" (master_data, tds_requests), can_run on
-// "scripts" (verify_tds, reset_master_data, manage_roles, manage_users), and
-// visible on "fields" (the Products/Rules/Alloy Properties sections within
-// master_data). All of this is data in roles/permission_objects/role_*_permissions
-// (see permissions-schema.sql) - adding a role or changing who can do what is a
-// pure data edit from Admin > Roles & Permissions, no code change needed. This
-// map is loaded once per session (loadPermissions(), called from showApp()) and
-// read synchronously everywhere else so the UI doesn't await a query per check.
-let PERM = { objects: {}, scripts: {}, fields: {} };
+// view/create/edit/delete on "objects" (products, rules, alloy_properties,
+// tds_requests) and can_run on "scripts" (verify_tds, reset_master_data,
+// manage_roles, manage_users). All of this is data in roles/
+// permission_objects/role_object_permissions/role_script_permissions (see
+// permissions-schema.sql + granular-master-data-permissions.sql) - adding a
+// role or changing who can do what is a pure data edit from Admin > Roles &
+// Permissions, no code change needed. This map is loaded once per session
+// (loadPermissions(), called from showApp()) and read synchronously
+// everywhere else so the UI doesn't await a query per check. The client map
+// is a UI-convenience cache only - the real boundary is server-side RLS,
+// including a trigger on app_state that checks which section of the master-
+// data JSON actually changed (products/rules/alloys each live in one row,
+// see check_master_data_section_permissions in the SQL).
+let PERM = { objects: {}, scripts: {} };
 let currentRoleName = null;
 
 async function loadPermissions(){
-  PERM = { objects: {}, scripts: {}, fields: {} };
+  PERM = { objects: {}, scripts: {} };
   currentRoleName = null;
   if(!currentProfile || !currentProfile.role_id) return;
-  const [objRes, scriptRes, fieldRes, roleRes] = await Promise.all([
+  const [objRes, scriptRes, roleRes] = await Promise.all([
     supabaseClient.from('role_object_permissions').select('object_key,can_view,can_create,can_edit,can_delete').eq('role_id', currentProfile.role_id),
     supabaseClient.from('role_script_permissions').select('script_key,can_run').eq('role_id', currentProfile.role_id),
-    supabaseClient.from('role_field_permissions').select('object_key,field_key,visible').eq('role_id', currentProfile.role_id),
     supabaseClient.from('roles').select('name').eq('id', currentProfile.role_id).maybeSingle()
   ]);
   (objRes.data || []).forEach(r=>{ PERM.objects[r.object_key] = { view: r.can_view, create: r.can_create, edit: r.can_edit, delete: r.can_delete }; });
   (scriptRes.data || []).forEach(r=>{ PERM.scripts[r.script_key] = r.can_run; });
-  (fieldRes.data || []).forEach(r=>{ (PERM.fields[r.object_key] ||= {})[r.field_key] = r.visible; });
   currentRoleName = roleRes.data ? roleRes.data.name : null;
 }
 function canViewObj(key){ return !!(PERM.objects[key] && PERM.objects[key].view); }
@@ -2422,7 +2400,12 @@ function canCreateObj(key){ return !!(PERM.objects[key] && PERM.objects[key].cre
 function canEdit(key){ return !!(PERM.objects[key] && PERM.objects[key].edit); }
 function canDeleteObj(key){ return !!(PERM.objects[key] && PERM.objects[key].delete); }
 function canRunScript(key){ return !!PERM.scripts[key]; }
-function fieldVisible(objKey, fieldKey){ const f = PERM.fields[objKey]; return f ? !!f[fieldKey] : false; }
+// Master data (Products / Rules / Alloy Properties) is three separate
+// permission objects now, but several UI spots (Admin tab visibility, the
+// Save button, populateAll()'s admin refresh) just need "is there anything
+// at all in here this role can edit" rather than a specific table.
+const MASTER_DATA_OBJECTS = ['products', 'rules', 'alloy_properties'];
+function canEditAnyMasterData(){ return MASTER_DATA_OBJECTS.some(canEdit); }
 
 async function renderApprovals(){
   const panel = document.getElementById('approvalsPanel');
@@ -2571,7 +2554,7 @@ async function showApp(){
   document.getElementById('topbarEmail').textContent = currentUser.email;
   await loadPermissions();
   document.getElementById('tabVerify').classList.toggle('hidden', !canRunScript('verify_tds'));
-  document.getElementById('tabAdmin').classList.toggle('hidden', !(canEdit('master_data') || canRunScript('manage_roles') || canRunScript('manage_users') || canRunScript('reset_master_data') || isSuperAdmin(currentUser)));
+  document.getElementById('tabAdmin').classList.toggle('hidden', !(canEditAnyMasterData() || canRunScript('manage_roles') || canRunScript('manage_users') || canRunScript('reset_master_data') || isSuperAdmin(currentUser)));
   refreshAdminAccessUi();
   renderApprovals();
 }

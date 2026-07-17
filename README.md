@@ -36,14 +36,15 @@ it's deployed (see **Integration modes** below).
 ## File structure
 
 ```
-index.html                  the entire app
-supabase-schema.sql          1) run first — app_state (master data), tds_records
-auth-schema.sql               2) login gate, profiles table, admin-approval trigger
-workflow-schema.sql            3) tds_requests (submit/verify/print request table)
-email-confirm-schema.sql        4) hide unconfirmed signups from the approval queue
-permissions-schema.sql           5) roles/permissions
-users-table-schema.sql            6) name/department/position/active - run last
-README.md                    this file
+index.html                       the entire app
+supabase-schema.sql               1) run first — app_state (master data), tds_records
+auth-schema.sql                    2) login gate, profiles table, admin-approval trigger
+workflow-schema.sql                 3) tds_requests (submit/verify/print request table)
+email-confirm-schema.sql             4) hide unconfirmed signups from the approval queue
+permissions-schema.sql                5) roles/permissions
+users-table-schema.sql                 6) name/department/position/active
+granular-master-data-permissions.sql    7) split Products/Rules/Alloy Properties - run last
+README.md                        this file
 ```
 
 ## Integration modes (auto-detected, in priority order)
@@ -83,11 +84,14 @@ The app checks its environment at load time and picks the first available option
    could type someone else's email into the signup form and show up as "pending."
 5. Run `permissions-schema.sql` next. This replaces the department column with the
    full role/permission system — see **Roles & permissions** above.
-6. Run `users-table-schema.sql` last. Adds `full_name`/`department`/`position`/
+6. Run `users-table-schema.sql` next. Adds `full_name`/`department`/`position`/
    `active` to `profiles` — see **Users** above.
-7. In your Supabase project: **Settings → API**, copy the **Project URL** and the
+7. Run `granular-master-data-permissions.sql` last. Splits `products`/`rules`/
+   `alloy_properties` into separate, database-enforced permission objects — see
+   **Roles & permissions** above.
+8. In your Supabase project: **Settings → API**, copy the **Project URL** and the
    **`anon` `public`** key (never the `service_role` key).
-8. In `index.html`, find:
+9. In `index.html`, find:
    ```js
    const SUPABASE_URL = "";
    const SUPABASE_ANON_KEY = "";
@@ -140,18 +144,21 @@ always has it).
 - **`roles`** — privilege sets. Ships with Super Admin (system role, can't be
   deleted), QC Manager, QC Inspector, Production Manager, Production Inspector, and
   Sales, but the super admin can rename, add, or delete roles freely from the UI.
-- **`permission_objects`** — a registry of protectable "data objects" (`master_data`,
-  `tds_requests`) and "scripts" (`verify_tds`, `reset_master_data`, `manage_roles`,
-  `manage_users` — named actions that aren't simple CRUD, like FileMaker script
-  permissions gating a button).
+- **`permission_objects`** — a registry of protectable "data objects" (`products`,
+  `rules`, `alloy_properties`, `tds_requests`) and "scripts" (`verify_tds`,
+  `reset_master_data`, `manage_roles`, `manage_users` — named actions that aren't
+  simple CRUD, like FileMaker script permissions gating a button).
 - **`role_object_permissions`** — View / Create / Edit / Delete per role × data
-  object.
+  object. Products, Conditions & Remarks Rules, and Alloy Properties are three
+  separate objects (see `granular-master-data-permissions.sql`) — a role can edit
+  Products without touching Alloy Properties, and vice versa, with **real
+  database-level enforcement**: `app_state` (where all three actually live, as one
+  JSON blob in one row — this app has no separate physical table per section) has a
+  trigger, `check_master_data_section_permissions()`, that inspects which top-level
+  key of the JSON a given save actually changed and requires edit rights on that
+  specific object. A role with `products.edit` but not `rules.edit` genuinely cannot
+  get a rules change through, even though both live in the same row.
 - **`role_script_permissions`** — Can-run per role × script.
-- **`role_field_permissions`** — section-level visibility within `master_data`
-  (Products / Rules / Alloy Properties) per role. This app's master data lives in
-  one JSON blob (`app_state`), not separate physical tables, so "fields" here map to
-  those three admin sections rather than literal input boxes — the honest
-  translation of FileMaker's field-level privileges onto this data model.
 - `profiles.role_id` replaces the old fixed department column.
 
 **Adding a user, adding a role, or changing who can do what is a pure data edit —
