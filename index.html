@@ -124,11 +124,24 @@
   table.cmp td.alloyname{font-family:'IBM Plex Sans',sans-serif; font-weight:700;}
   table.cmp tbody tr:nth-child(even){background:#fbfbf9;}
 
+  /* FileMaker-style compact sub-tab strip, attached to the top of whichever
+     admin-main-panel is showing (Master Data / Roles & Permissions / Users) */
+  .subtabs{display:flex; gap:2px; max-width:1100px; margin:0;}
+  .subtabs.hidden{display:none;}
+  .subtab{
+    padding:8px 20px; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.2px;
+    background:var(--alu-1); color:var(--steel-dark); border:1px solid var(--line); border-bottom:none;
+    border-radius:6px 6px 0 0; cursor:pointer;
+  }
+  .subtab.hidden{display:none;}
+  .subtab.active{background:#fff; color:var(--ink);}
+
   /* admin main-window panel */
   .admin-main-panel{
     width:100%; max-width:1100px; background:#fff; border-radius:4px;
     box-shadow:0 10px 30px rgba(20,29,36,0.18); padding:26px 30px 40px;
   }
+  .admin-main-panel.sub-tabbed{border-radius:0 6px 6px 6px;}
   .admin-main-header{border-bottom:3px solid var(--danger); padding-bottom:14px; margin-bottom:18px;}
   .admin-main-header h2{margin:0 0 6px; font-family:'Barlow Semi Condensed',sans-serif; font-size:22px; text-transform:uppercase; letter-spacing:0.4px; color:var(--danger);}
   .admin-main-header p{margin:0; font-size:12.5px; color:#666;}
@@ -493,10 +506,10 @@
 
   <!-- ============ PREVIEW / OUTPUT ============ -->
   <div class="preview-wrap">
-    <div class="tabs hidden" id="adminSubTabs" style="max-width:1100px;margin:0 0 18px;">
-      <button type="button" class="tab" id="adminSubTabMasterData">Master Data</button>
-      <button type="button" class="tab" id="adminSubTabRoles">Roles &amp; Permissions</button>
-      <button type="button" class="tab" id="adminSubTabUsers">Users</button>
+    <div class="subtabs hidden" id="adminSubTabs">
+      <button type="button" class="subtab" id="adminSubTabMasterData">Master Data</button>
+      <button type="button" class="subtab" id="adminSubTabRoles">Roles &amp; Permissions</button>
+      <button type="button" class="subtab" id="adminSubTabUsers">Users</button>
     </div>
     <div class="admin-main-panel hidden" id="adminMainPanel">
       <div class="admin-main-header">
@@ -1481,6 +1494,7 @@ function setMode(newMode){
   adminSections.forEach(s=>{
     const show = s.available && (!showAdminSwitcher || adminSubMode===s.key);
     document.getElementById(s.panelId).classList.toggle('hidden', !show);
+    document.getElementById(s.panelId).classList.toggle('sub-tabbed', showAdminSwitcher);
     document.getElementById(s.tabId).classList.toggle('hidden', !s.available);
     document.getElementById(s.tabId).classList.toggle('active', show);
     if(s.key==='roles') showRolesPanel = show;
