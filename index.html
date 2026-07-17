@@ -2561,9 +2561,20 @@ async function showApp(){
   renderApprovals();
 }
 
-async function runAuthGate(){
+async function runAuthGate(event){
   const { data: { session } } = await supabaseClient.auth.getSession();
   if(!session){ currentUser = null; currentProfile = null; showAuthGate(); return; }
+  // TOKEN_REFRESHED / USER_UPDATED fire on routine background token refresh
+  // (supabase-js also re-checks on tab refocus) - the signed-in account hasn't
+  // changed, so once the app is already up, just keep the session reference
+  // current instead of tearing down and rebuilding the whole UI. Doing the full
+  // rebuild on every one of these was causing visible flicker/scroll-jumping
+  // for a user mid-task (e.g. typing in the Library search box) every time a
+  // refresh happened to land.
+  if((event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') && window.__appInitialized){
+    currentUser = session.user;
+    return;
+  }
   currentUser = session.user;
   const { data: profile, error } = await supabaseClient.from('profiles').select('id,email,status,role_id,active').eq('id', currentUser.id).maybeSingle();
   if(error || !profile){ currentProfile = null; showPendingGate('pending'); return; }
@@ -2935,7 +2946,7 @@ document.getElementById('btnReset').addEventListener('click', ()=>{
    INIT
    ===================================================================== */
 if(supabaseAvailable()){
-  supabaseClient.auth.onAuthStateChange((_event, _session)=>{ runAuthGate(); });
+  supabaseClient.auth.onAuthStateChange((event, _session)=>{ runAuthGate(event); });
   runAuthGate();
 } else {
   // No Supabase configured in this environment (e.g. FileMaker embed, or a
