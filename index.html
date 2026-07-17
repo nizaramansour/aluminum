@@ -124,6 +124,12 @@
   table.cmp td.alloyname{font-family:'IBM Plex Sans',sans-serif; font-weight:700;}
   table.cmp tbody tr:nth-child(even){background:#fbfbf9;}
 
+  /* .preview-wrap is display:flex (row) — without this wrapper, the tab strip
+     and the active admin-main-panel would each be their own flex item and end
+     up side by side instead of stacked. Wrapping both in one plain block-level
+     div makes them a single flex item, so normal block flow stacks them. */
+  .admin-section-wrap{width:100%; max-width:1100px;}
+
   /* FileMaker-style compact sub-tab strip, attached to the top of whichever
      admin-main-panel is showing (Master Data / Roles & Permissions / Users) */
   .subtabs{display:flex; gap:2px; max-width:1100px; margin:0;}
@@ -506,6 +512,7 @@
 
   <!-- ============ PREVIEW / OUTPUT ============ -->
   <div class="preview-wrap">
+    <div class="admin-section-wrap" id="adminSectionWrap">
     <div class="subtabs hidden" id="adminSubTabs">
       <button type="button" class="subtab" id="adminSubTabMasterData">Master Data</button>
       <button type="button" class="subtab" id="adminSubTabRoles">Roles &amp; Permissions</button>
@@ -678,6 +685,7 @@
           <tbody id="usersBody"></tbody>
         </table>
       </div>
+    </div>
     </div>
   </div>
 </div>
