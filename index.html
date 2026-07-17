@@ -315,6 +315,8 @@
     <form id="signupForm" class="hidden">
       <h2>Create account</h2>
       <p class="sub">Requires confirming your email, then approval by the site administrator before you can sign in.</p>
+      <label for="signupFullName">Full name</label>
+      <input type="text" id="signupFullName" required autocomplete="name">
       <label for="signupEmail">Email</label>
       <input type="email" id="signupEmail" required autocomplete="username">
       <label for="signupPassword">Password</label>
@@ -436,8 +438,9 @@
     <!-- ===== ADMIN MODE ===== -->
     <div id="adminControls" class="hidden">
       <details class="approvals-panel hidden" id="approvalsPanel" open>
-        <summary>&#128273; User Approvals &amp; Roles <span class="badge-count hidden" id="approvalsCount">0</span></summary>
+        <summary>&#128273; Pending Signups <span class="badge-count hidden" id="approvalsCount">0</span></summary>
         <div id="approvalsList"></div>
+        <p class="hint" id="usersAdminHint" style="margin-top:8px;">Full user list — name, role, department, position, active status — is open in the main panel's Users section below.</p>
       </details>
       <div class="eyebrow"><span class="num">02</span> Master data administration</div>
       <div id="adminNoAccess" class="hidden">
@@ -493,6 +496,7 @@
     <div class="tabs hidden" id="adminSubTabs" style="max-width:1100px;margin:0 0 18px;">
       <button type="button" class="tab" id="adminSubTabMasterData">Master Data</button>
       <button type="button" class="tab" id="adminSubTabRoles">Roles &amp; Permissions</button>
+      <button type="button" class="tab" id="adminSubTabUsers">Users</button>
     </div>
     <div class="admin-main-panel hidden" id="adminMainPanel">
       <div class="admin-main-header">
@@ -648,6 +652,19 @@
       </div>
       <div id="rolesList" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;"></div>
       <div id="roleEditor"></div>
+    </div>
+
+    <div class="admin-main-panel hidden" id="usersPanel">
+      <div class="admin-main-header">
+        <h2>Users</h2>
+        <p>Everyone who has ever registered via Sign Up. Role (privilege set) controls what a user can actually do — Department and Position are informational only. Active can suspend an approved user's access without losing their role or history.</p>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="libtable" id="usersTable">
+          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Department</th><th>Position</th><th>Status</th><th>Active</th><th>User since</th></tr></thead>
+          <tbody id="usersBody"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 </div>
@@ -1093,7 +1110,7 @@ const TDS_FOOT = "Standard declared per selected alloy (see Standard row). Thick
 const CMP_FOOT = "This sheet compares mechanical and chemical properties only — no thickness, width, coil, or packing tolerances are included. For an order-specific, dimensioned sheet, use the TDS Generator tab.";
 
 let mode = 'tds';
-let adminSubMode = 'master'; // 'master' | 'roles' — which Admin section is shown when a role has both
+let adminSubMode = 'master'; // 'master' | 'roles' | 'users' — which Admin section is shown when a role has more than one
 let lastAutoRef = ""; // tracks the last auto-generated TDS ref so switching alloy/temper can refresh it without clobbering a user-typed ref
 
 /* =====================================================================
@@ -1445,26 +1462,38 @@ function setMode(newMode){
   compareBody.classList.toggle('hidden', mode!=='compare');
   const masterDataUnlocked = mode==='admin' && canEdit('master_data');
   const rolesAdminVisible = mode==='admin' && (canRunScript('manage_roles') || isSuperAdmin(currentUser));
-  const bothAdminSectionsAvailable = masterDataUnlocked && rolesAdminVisible;
-  // When a role has both master-data-edit and manage-roles rights, show one
-  // section at a time via a sub-tab switcher rather than stacking both main
-  // panels side by side — a role with only one right skips the switcher and
-  // just sees that section directly.
-  const showMasterDataPanel = masterDataUnlocked && (!bothAdminSectionsAvailable || adminSubMode==='master');
-  const showRolesPanel = rolesAdminVisible && (!bothAdminSectionsAvailable || adminSubMode==='roles');
+  const usersAdminVisible = mode==='admin' && (canRunScript('manage_users') || isSuperAdmin(currentUser));
+  // When a role has rights to more than one Admin section, show one at a time
+  // via a sub-tab switcher rather than stacking every available main panel —
+  // a role with only one right skips the switcher and just sees that section.
+  const adminSections = [
+    { key: 'master', available: masterDataUnlocked, panelId: 'adminMainPanel', tabId: 'adminSubTabMasterData' },
+    { key: 'roles', available: rolesAdminVisible, panelId: 'rolesPermissionsPanel', tabId: 'adminSubTabRoles' },
+    { key: 'users', available: usersAdminVisible, panelId: 'usersPanel', tabId: 'adminSubTabUsers' }
+  ];
+  const availableAdminSections = adminSections.filter(s=>s.available);
+  const showAdminSwitcher = availableAdminSections.length > 1;
+  if(showAdminSwitcher && !availableAdminSections.some(s=>s.key===adminSubMode)) adminSubMode = availableAdminSections[0].key;
+  let showRolesPanel = false;
+  let showUsersPanel = false;
   document.getElementById('sheet').classList.toggle('hidden', mode!=='tds' && mode!=='compare');
-  document.getElementById('adminSubTabs').classList.toggle('hidden', !bothAdminSectionsAvailable);
-  document.getElementById('adminSubTabMasterData').classList.toggle('active', showMasterDataPanel);
-  document.getElementById('adminSubTabRoles').classList.toggle('active', showRolesPanel);
-  document.getElementById('adminMainPanel').classList.toggle('hidden', !showMasterDataPanel);
+  document.getElementById('adminSubTabs').classList.toggle('hidden', !showAdminSwitcher);
+  adminSections.forEach(s=>{
+    const show = s.available && (!showAdminSwitcher || adminSubMode===s.key);
+    document.getElementById(s.panelId).classList.toggle('hidden', !show);
+    document.getElementById(s.tabId).classList.toggle('hidden', !s.available);
+    document.getElementById(s.tabId).classList.toggle('active', show);
+    if(s.key==='roles') showRolesPanel = show;
+    if(s.key==='users') showUsersPanel = show;
+  });
   document.getElementById('myRequestsPanel').classList.toggle('hidden', mode!=='myrequests');
   document.getElementById('verifyRequestsPanel').classList.toggle('hidden', mode!=='verify');
-  document.getElementById('rolesPermissionsPanel').classList.toggle('hidden', !showRolesPanel);
   document.getElementById('adminNoAccess').classList.toggle('hidden', !(mode==='admin' && !masterDataUnlocked));
   document.getElementById('adminUnlocked').classList.toggle('hidden', !masterDataUnlocked);
   document.getElementById('btnResetMaster').classList.toggle('hidden', !(mode==='admin' && canRunScript('reset_master_data')));
   document.getElementById('rolesAdminEyebrow').classList.toggle('hidden', !rolesAdminVisible);
   document.getElementById('rolesAdminHint').classList.toggle('hidden', !rolesAdminVisible);
+  document.getElementById('usersAdminHint').classList.toggle('hidden', !usersAdminVisible);
   if(mode==='admin'){
     document.getElementById('adminDeptLabel').textContent = currentRoleName || '—';
   }
@@ -1475,6 +1504,7 @@ function setMode(newMode){
   else if(mode==='myrequests'){ loadMyRequests(); }
   else if(mode==='verify'){ loadVerifyQueue(); }
   else if(mode==='admin' && showRolesPanel){ renderRolesPermissionsPanel(); }
+  else if(mode==='admin' && showUsersPanel){ renderUsersPanel(); }
 }
 tabTds.addEventListener('click', ()=>setMode('tds'));
 tabCompare.addEventListener('click', ()=>setMode('compare'));
@@ -1485,6 +1515,7 @@ document.getElementById('btnRefreshMyRequests').addEventListener('click', loadMy
 document.getElementById('btnRefreshVerifyQueue').addEventListener('click', loadVerifyQueue);
 document.getElementById('adminSubTabMasterData').addEventListener('click', ()=>{ adminSubMode = 'master'; setMode('admin'); });
 document.getElementById('adminSubTabRoles').addEventListener('click', ()=>{ adminSubMode = 'roles'; setMode('admin'); });
+document.getElementById('adminSubTabUsers').addEventListener('click', ()=>{ adminSubMode = 'users'; setMode('admin'); });
 
 /* =====================================================================
    ADMIN: PRODUCTS, RULES, ALLOYS EDITORS
@@ -2312,13 +2343,14 @@ loginForm.addEventListener('submit', async (e)=>{
 signupForm.addEventListener('submit', async (e)=>{
   e.preventDefault();
   signupMsg.className = "auth-msg";
+  const fullName = document.getElementById('signupFullName').value.trim();
   const email = document.getElementById('signupEmail').value.trim();
   const password = document.getElementById('signupPassword').value;
   const password2 = document.getElementById('signupPassword2').value;
   if(password !== password2){ showMsg(signupMsg, "Passwords don't match.", 'err'); return; }
   const btn = signupForm.querySelector('button[type=submit]');
   btn.disabled = true;
-  const { error } = await supabaseClient.auth.signUp({ email, password });
+  const { error } = await supabaseClient.auth.signUp({ email, password, options: { data: { full_name: fullName } } });
   btn.disabled = false;
   if(error){ showMsg(signupMsg, error.message, 'err'); return; }
   showMsg(signupMsg, "Account created — check your email to confirm it, then wait for admin approval before signing in.", 'ok');
@@ -2374,11 +2406,7 @@ async function renderApprovals(){
   const panel = document.getElementById('approvalsPanel');
   if(!isSuperAdmin(currentUser) && !canRunScript('manage_users')){ panel.classList.add('hidden'); return; }
   panel.classList.remove('hidden');
-  const [{ data, error }, { data: rolesData }] = await Promise.all([
-    supabaseClient.from('profiles').select('id,email,status,created_at,role_id,email_confirmed').order('created_at', { ascending: true }),
-    supabaseClient.from('roles').select('id,name').order('name', { ascending: true })
-  ]);
-  const roles = rolesData || [];
+  const { data, error } = await supabaseClient.from('profiles').select('id,email,status,created_at,email_confirmed').order('created_at', { ascending: true });
   const list = document.getElementById('approvalsList');
   const countEl = document.getElementById('approvalsCount');
   list.innerHTML = "";
@@ -2391,14 +2419,9 @@ async function renderApprovals(){
   // identity nobody has proven ownership of.
   const pending = all.filter(p=>p.status==='pending' && p.email_confirmed);
   const unconfirmed = all.filter(p=>p.status==='pending' && !p.email_confirmed);
-  const approved = all.filter(p=>p.status==='approved');
   countEl.textContent = pending.length;
   countEl.classList.toggle('hidden', pending.length === 0);
 
-  const pendingHead = document.createElement('div');
-  pendingHead.style.cssText = "padding:8px 12px 2px;font-size:10.5px;font-weight:700;text-transform:uppercase;color:#999;";
-  pendingHead.textContent = "Pending signups";
-  list.appendChild(pendingHead);
   if(!pending.length){
     const empty = document.createElement('div'); empty.className = "approval-row"; empty.style.cssText="color:#999;font-style:italic;";
     empty.textContent = "No pending signups."; list.appendChild(empty);
@@ -2418,26 +2441,6 @@ async function renderApprovals(){
     row.querySelector('.reject-btn').addEventListener('click', ()=>setApproval(p.id, 'rejected'));
     list.appendChild(row);
   });
-
-  const approvedHead = document.createElement('div');
-  approvedHead.style.cssText = "padding:12px 12px 2px;font-size:10.5px;font-weight:700;text-transform:uppercase;color:#999;border-top:1px solid #f1e6d3;";
-  approvedHead.textContent = "Approved users — role";
-  list.appendChild(approvedHead);
-  if(!approved.length){
-    const empty = document.createElement('div'); empty.className = "approval-row"; empty.style.cssText="color:#999;font-style:italic;";
-    empty.textContent = "No approved users yet."; list.appendChild(empty);
-  }
-  approved.forEach(p=>{
-    const row = document.createElement('div'); row.className = "approval-row";
-    const isSelf = p.email && p.email.toLowerCase() === SUPER_ADMIN_EMAIL;
-    const options = roles.map(r=>`<option value="${esc(r.id)}" ${r.id===p.role_id?'selected':''}>${esc(r.name)}</option>`).join('');
-    row.innerHTML = `<span class="email">${esc(p.email)}</span>
-      <select class="dept-select" ${isSelf?'disabled':''} style="font-size:10.5px;padding:4px 6px;">${options}</select>`;
-    if(!isSelf){
-      row.querySelector('.dept-select').addEventListener('change', (e)=>setUserRole(p.id, e.target.value));
-    }
-    list.appendChild(row);
-  });
 }
 
 async function setApproval(profileId, status){
@@ -2446,12 +2449,78 @@ async function setApproval(profileId, status){
   }).eq('id', profileId);
   if(error){ alert('Could not update approval: ' + error.message); return; }
   renderApprovals();
+  if(document.getElementById('usersPanel').classList.contains('hidden') === false) renderUsersPanel();
 }
 
 async function setUserRole(profileId, roleId){
   const { error } = await supabaseClient.from('profiles').update({ role_id: roleId }).eq('id', profileId);
-  if(error){ alert('Could not update role: ' + error.message); renderApprovals(); return; }
-  renderApprovals();
+  if(error){ alert('Could not update role: ' + error.message); renderUsersPanel(); return; }
+}
+
+/* =====================================================================
+   USERS (the full roster — name, email, role, department, position,
+   status, active — everyone who has ever registered via Sign Up)
+   ===================================================================== */
+const STATUS_LABELS = { pending: 'Pending approval', approved: 'Approved', rejected: 'Rejected' };
+
+async function renderUsersPanel(){
+  const body = document.getElementById('usersBody');
+  const [{ data: users, error }, { data: rolesData }] = await Promise.all([
+    supabaseClient.from('profiles').select('id,email,full_name,status,created_at,role_id,department,position,active,email_confirmed').order('created_at', { ascending: true }),
+    supabaseClient.from('roles').select('id,name').order('name', { ascending: true })
+  ]);
+  const roles = rolesData || [];
+  body.innerHTML = "";
+  if(error){ body.innerHTML = `<tr><td colspan="8">Could not load users: ${esc(error.message)}</td></tr>`; return; }
+  (users||[]).forEach(u=>{
+    const isSelf = u.email && u.email.toLowerCase() === SUPER_ADMIN_EMAIL;
+    const tr = document.createElement('tr');
+    const when = u.created_at ? new Date(u.created_at).toLocaleDateString() : '—';
+    const roleOptions = roles.map(r=>`<option value="${esc(r.id)}" ${r.id===u.role_id?'selected':''}>${esc(r.name)}</option>`).join('');
+    const statusTxt = u.status==='pending' && !u.email_confirmed ? 'Unconfirmed email' : (STATUS_LABELS[u.status] || u.status);
+
+    tr.innerHTML = `<td><input type="text" class="user-name-input" value="${esc(u.full_name || '')}" placeholder="—" style="font-size:11px;padding:3px 5px;width:110px;"></td>
+      <td>${esc(u.email)}</td>
+      <td><select class="user-role-select" style="font-size:11px;padding:3px 5px;" ${isSelf?'disabled':''}>${roleOptions}</select></td>
+      <td><input type="text" class="user-dept-input" value="${esc(u.department || '')}" placeholder="—" style="font-size:11px;padding:3px 5px;width:100px;"></td>
+      <td><input type="text" class="user-position-input" value="${esc(u.position || '')}" placeholder="—" style="font-size:11px;padding:3px 5px;width:100px;"></td>
+      <td class="user-status-cell"></td>
+      <td style="text-align:center;"><input type="checkbox" class="user-active-checkbox" ${u.active?'checked':''} ${(isSelf||u.status!=='approved')?'disabled':''}></td>
+      <td>${esc(when)}</td>`;
+
+    const statusCell = tr.querySelector('.user-status-cell');
+    statusCell.textContent = statusTxt;
+    if(u.status==='pending' && u.email_confirmed){
+      const approveBtn = document.createElement('button');
+      approveBtn.type = 'button'; approveBtn.textContent = 'Approve'; approveBtn.style.cssText = 'margin-left:6px;font-size:10px;padding:3px 6px;';
+      approveBtn.addEventListener('click', ()=>setApproval(u.id, 'approved'));
+      const rejectBtn = document.createElement('button');
+      rejectBtn.type = 'button'; rejectBtn.textContent = 'Reject'; rejectBtn.className = 'danger-btn'; rejectBtn.style.cssText = 'margin-left:4px;font-size:10px;padding:3px 6px;';
+      rejectBtn.addEventListener('click', ()=>setApproval(u.id, 'rejected'));
+      statusCell.appendChild(approveBtn);
+      statusCell.appendChild(rejectBtn);
+    }
+
+    if(!isSelf){
+      tr.querySelector('.user-role-select').addEventListener('change', (e)=>setUserRole(u.id, e.target.value));
+      tr.querySelector('.user-active-checkbox').addEventListener('change', (e)=>setUserActive(u.id, e.target.checked));
+    }
+    tr.querySelector('.user-name-input').addEventListener('change', (e)=>setUserField(u.id, 'full_name', e.target.value.trim()));
+    tr.querySelector('.user-dept-input').addEventListener('change', (e)=>setUserField(u.id, 'department', e.target.value.trim()));
+    tr.querySelector('.user-position-input').addEventListener('change', (e)=>setUserField(u.id, 'position', e.target.value.trim()));
+
+    body.appendChild(tr);
+  });
+}
+
+async function setUserField(profileId, field, value){
+  const { error } = await supabaseClient.from('profiles').update({ [field]: value || null }).eq('id', profileId);
+  if(error){ alert(`Could not update ${field}: ` + error.message); renderUsersPanel(); }
+}
+
+async function setUserActive(profileId, active){
+  const { error } = await supabaseClient.from('profiles').update({ active }).eq('id', profileId);
+  if(error){ alert('Could not update active status: ' + error.message); renderUsersPanel(); }
 }
 
 function showAuthGate(){
@@ -2464,9 +2533,12 @@ function showPendingGate(status){
   pendingGate.classList.remove('hidden');
   appRoot.classList.add('hidden');
   const isRejected = status === 'rejected';
-  document.getElementById('pendingIcon').innerHTML = isRejected ? '&#10060;' : '&#9203;';
-  document.getElementById('pendingTitle').textContent = isRejected ? 'Access denied' : 'Awaiting approval';
-  document.getElementById('pendingText').textContent = isRejected
+  const isDeactivated = status === 'deactivated';
+  document.getElementById('pendingIcon').innerHTML = (isRejected || isDeactivated) ? '&#10060;' : '&#9203;';
+  document.getElementById('pendingTitle').textContent = isDeactivated ? 'Account deactivated' : isRejected ? 'Access denied' : 'Awaiting approval';
+  document.getElementById('pendingText').textContent = isDeactivated
+    ? "This account has been deactivated by the administrator. Contact " + SUPER_ADMIN_EMAIL + " if you believe this is a mistake."
+    : isRejected
     ? "This account's access request was declined by the administrator. Contact " + SUPER_ADMIN_EMAIL + " if you believe this is a mistake."
     : "Your account has been created and your email confirmed. An administrator needs to approve access before you can use this tool. You'll be able to sign in as soon as that happens — no need to sign up again.";
 }
@@ -2486,10 +2558,12 @@ async function runAuthGate(){
   const { data: { session } } = await supabaseClient.auth.getSession();
   if(!session){ currentUser = null; currentProfile = null; showAuthGate(); return; }
   currentUser = session.user;
-  const { data: profile, error } = await supabaseClient.from('profiles').select('id,email,status,role_id').eq('id', currentUser.id).maybeSingle();
+  const { data: profile, error } = await supabaseClient.from('profiles').select('id,email,status,role_id,active').eq('id', currentUser.id).maybeSingle();
   if(error || !profile){ currentProfile = null; showPendingGate('pending'); return; }
   currentProfile = profile;
-  if(profile.status === 'approved'){
+  if(profile.status === 'approved' && profile.active === false){
+    showPendingGate('deactivated');
+  } else if(profile.status === 'approved'){
     await showApp();
     if(!window.__appInitialized){ window.__appInitialized = true; loadMasterData(); }
   } else {

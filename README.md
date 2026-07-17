@@ -41,7 +41,8 @@ supabase-schema.sql          1) run first — app_state (master data), tds_recor
 auth-schema.sql               2) login gate, profiles table, admin-approval trigger
 workflow-schema.sql            3) tds_requests (submit/verify/print request table)
 email-confirm-schema.sql        4) hide unconfirmed signups from the approval queue
-permissions-schema.sql           5) roles/permissions - run last
+permissions-schema.sql           5) roles/permissions
+users-table-schema.sql            6) name/department/position/active - run last
 README.md                    this file
 ```
 
@@ -80,11 +81,13 @@ The app checks its environment at load time and picks the first available option
    Admin approval queue only ever shows a signup once the requestor has proven they
    own that email address (clicked Supabase's confirmation link) — otherwise anyone
    could type someone else's email into the signup form and show up as "pending."
-5. Run `permissions-schema.sql` last. This replaces the department column with the
-   full role/permission system — see **Roles & permissions** below.
-6. In your Supabase project: **Settings → API**, copy the **Project URL** and the
+5. Run `permissions-schema.sql` next. This replaces the department column with the
+   full role/permission system — see **Roles & permissions** above.
+6. Run `users-table-schema.sql` last. Adds `full_name`/`department`/`position`/
+   `active` to `profiles` — see **Users** above.
+7. In your Supabase project: **Settings → API**, copy the **Project URL** and the
    **`anon` `public`** key (never the `service_role` key).
-7. In `index.html`, find:
+8. In `index.html`, find:
    ```js
    const SUPABASE_URL = "";
    const SUPABASE_ANON_KEY = "";
@@ -162,6 +165,30 @@ an in-memory map for fast UI gating; the real security boundary is the matching
 Postgres RLS policies, which call `has_object_permission()` / `has_script_permission()`
 SQL functions server-side — the same pattern the old passphrase/department system
 used, just generalized.
+
+## Users
+
+**Admin → Users** (`usersPanel`, gated by the `manage_users` script permission — see
+`users-table-schema.sql`) is the full roster: every account that has ever registered
+via Sign Up, editable in one table.
+
+- **Name, Department, Position** — free-text, informational only. They describe the
+  person (e.g. "Hari" / "Quality Control" / "QC Manager"); they don't grant anything.
+  Name is also collected at signup now (`profiles.full_name`, via
+  `signUp({ options: { data: { full_name } } })`) but stays editable here for
+  existing accounts or typo fixes.
+- **Role** — the actual privilege set (see **Roles & permissions** above). This is
+  what controls what the user can do; it's normal for it to say something different
+  from Position (e.g. Position "Senior QC Inspector", Role "QC Inspector").
+- **Status** — Pending approval / Approved / Rejected, with Approve/Reject actions
+  inline for pending rows (same action as the sidebar's Pending Signups list; both
+  stay in sync).
+- **Active** — `profiles.active`, independent of Status. Lets you suspend an
+  *already-approved* user's access (they're blocked at both the RLS layer and the
+  login gate, with a distinct "Account deactivated" message) without demoting them
+  or losing their role/history — useful for someone on leave or who left, versus
+  Rejected which is for a signup that should never have been approved at all.
+- **User since** — `created_at`.
 
 ## The submit → verify → print workflow
 
