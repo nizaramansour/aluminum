@@ -9,17 +9,18 @@ it's deployed (see **Integration modes** below).
 
 ## Features
 
-- **TDS Generator** — pick product, alloy, temper, thickness (mm), width (mm), units
-  (metric/imperial/both); generates a letterhead-branded, print/PDF-ready technical
-  data sheet with tensile/yield/elongation/bend looked up from the shared thickness-
-  range grid, ANSI H35.2 dimensional tolerances, and condition-based remarks (e.g.
-  tension-leveling flatness rules, slit-coil edge-ripple notes by width).
+- **TDS Generator** — Sales picks product, alloy, temper, thickness (mm), width (mm),
+  units (metric/imperial/both) and submits for verification; tensile/yield/elongation/
+  bend are looked up from that alloy+temper's own thickness bands, plus ANSI H35.2
+  dimensional tolerances and condition-based remarks (e.g. tension-leveling flatness
+  rules, slit-coil edge-ripple notes by width). See **The submit → verify → print
+  workflow** below — it no longer prints directly.
 - **Alloy Comparator** — pick any alloy + temper combination, add to a comparison
   list, generates a side-by-side mechanical/chemical properties sheet (no dimensional
-  tolerances).
-- **Admin tab** (passphrase-gated, see below) — edit Products, Conditions & Remarks
-  Rules, and the full Alloys/Chemistry/Thickness-Bands library, all from the browser.
-  Every alloy/temper block is independently collapsible.
+  tolerances); prints directly, unaffected by the workflow above.
+- **Admin tab** (role-permission-gated, see **Roles & permissions** below) — edit
+  Products, Conditions & Remarks Rules, and the full Alloys/Chemistry/Thickness-Bands
+  library, all from the browser. Every alloy/temper block is independently collapsible.
 - **Client-side PDF export** — via html2canvas + jsPDF, downloads directly; no print
   dialog dependency (important since print() is unreliable inside sandboxed iframes).
 
@@ -35,11 +36,13 @@ it's deployed (see **Integration modes** below).
 ## File structure
 
 ```
-index.html            the entire app
-supabase-schema.sql    run this once in Supabase's SQL editor before deploying
-auth-schema.sql        run next — login gate, profiles table, admin-approval trigger
-workflow-schema.sql    run last — departments + submit/verify/print request workflow
-README.md              this file
+index.html                  the entire app
+supabase-schema.sql          1) run first — app_state (master data), tds_records
+auth-schema.sql               2) login gate, profiles table, admin-approval trigger
+workflow-schema.sql            3) tds_requests (submit/verify/print request table)
+email-confirm-schema.sql        4) hide unconfirmed signups from the approval queue
+permissions-schema.sql           5) roles/permissions - run last
+README.md                    this file
 ```
 
 ## Integration modes (auto-detected, in priority order)
@@ -71,13 +74,17 @@ The app checks its environment at load time and picks the first available option
    table and the login-gate RLS policies described in **Account access** below —
    without it, `supabase-schema.sql`'s tables are still wide open to anyone with
    the anon key, not just approved signed-in users.
-3. Run `workflow-schema.sql` next. This adds the `department` column to `profiles`,
-   creates `tds_requests` (the submit/verify/print request table), and tightens
-   `app_state` so only `qc`/`admin` departments can write master data — see
-   **Departments and the submit → verify → print workflow** below.
-4. In your Supabase project: **Settings → API**, copy the **Project URL** and the
+3. Run `workflow-schema.sql` next. This creates `tds_requests` (the submit/verify/
+   print request table) — see **The submit → verify → print workflow** below.
+4. Run `email-confirm-schema.sql` next. Adds `profiles.email_confirmed` so the
+   Admin approval queue only ever shows a signup once the requestor has proven they
+   own that email address (clicked Supabase's confirmation link) — otherwise anyone
+   could type someone else's email into the signup form and show up as "pending."
+5. Run `permissions-schema.sql` last. This replaces the department column with the
+   full role/permission system — see **Roles & permissions** below.
+6. In your Supabase project: **Settings → API**, copy the **Project URL** and the
    **`anon` `public`** key (never the `service_role` key).
-5. In `index.html`, find:
+7. In `index.html`, find:
    ```js
    const SUPABASE_URL = "";
    const SUPABASE_ANON_KEY = "";
@@ -98,7 +105,7 @@ The app checks its environment at load time and picks the first available option
 When Supabase is configured, the entire app sits behind a login screen — nothing
 renders until the visitor is signed in with an **approved** account. This is a real
 access control (enforced by Row Level Security on `app_state`/`tds_records`, not just
-a UI overlay), separate from the Admin-tab passphrase below.
+a UI overlay), separate from the role-based permissions described below.
 
 - **Sign up**: email + password, via the Sign Up tab on the login screen. Supabase
   sends a confirmation email the user must click before they can sign in.
@@ -119,27 +126,54 @@ a UI overlay), separate from the Admin-tab passphrase below.
   up the `profiles` table, the approval trigger, and the RLS policies that require
   an approved session.
 
-## Departments and the submit → verify → print workflow
+## Roles & permissions (FileMaker-style privilege sets)
 
-Every approved account has a **department**: `sales`, `qc`, `production`, or `admin`.
-New signups default to `sales`; the super admin (`nizar.a.mansour@gmail.com`) is
-auto-set to `admin`. The super admin assigns/changes everyone else's department from
-the dropdown in Admin → User Approvals & Departments. This is real access control
-enforced by Supabase RLS (see `workflow-schema.sql`), not just a UI toggle.
+Access control is **fully data-driven**, modeled after FileMaker's privilege sets —
+see `permissions-schema.sql`. There is no hardcoded department enum in the code;
+everything below is rows in the database, editable from **Admin → Roles &
+Permissions** by anyone with the `manage_roles` script permission (the super admin
+always has it).
 
-- **Master data editing** (Products, Conditions & Remarks Rules, Alloy Properties in
-  the Admin tab) is restricted to `qc` and `admin`. Anyone else sees a read-only
-  notice instead of the editors — both in the UI (`canEditMasterData()`) and at the
-  database level (`app_state` RLS only allows insert/update from qc/admin).
-- **TDS Generator no longer prints directly.** Filling the form and clicking
-  "Submit for Verification" freezes the current form state — resolved alloy/temper
+- **`roles`** — privilege sets. Ships with Super Admin (system role, can't be
+  deleted), QC Manager, QC Inspector, Production Manager, Production Inspector, and
+  Sales, but the super admin can rename, add, or delete roles freely from the UI.
+- **`permission_objects`** — a registry of protectable "data objects" (`master_data`,
+  `tds_requests`) and "scripts" (`verify_tds`, `reset_master_data`, `manage_roles`,
+  `manage_users` — named actions that aren't simple CRUD, like FileMaker script
+  permissions gating a button).
+- **`role_object_permissions`** — View / Create / Edit / Delete per role × data
+  object.
+- **`role_script_permissions`** — Can-run per role × script.
+- **`role_field_permissions`** — section-level visibility within `master_data`
+  (Products / Rules / Alloy Properties) per role. This app's master data lives in
+  one JSON blob (`app_state`), not separate physical tables, so "fields" here map to
+  those three admin sections rather than literal input boxes — the honest
+  translation of FileMaker's field-level privileges onto this data model.
+- `profiles.role_id` replaces the old fixed department column.
+
+**Adding a user, adding a role, or changing who can do what is a pure data edit —
+zero code.** The one time code is still needed is inventing a genuinely new
+feature/table/script in the first place; wiring its permission is then one generic
+`canEdit('key')` / `canRunScript('key')` call plus one `permission_objects` row, not
+bespoke per-role logic.
+
+The client loads its own role's permissions once at login (`loadPermissions()`) into
+an in-memory map for fast UI gating; the real security boundary is the matching
+Postgres RLS policies, which call `has_object_permission()` / `has_script_permission()`
+SQL functions server-side — the same pattern the old passphrase/department system
+used, just generalized.
+
+## The submit → verify → print workflow
+
+- **TDS Generator doesn't print directly.** Filling the form and clicking "Submit
+  for Verification" freezes the current form state — resolved alloy/temper
   properties, thickness band values, tolerances, and matching remarks — into a
-  `tds_requests` row with `status = 'pending'`. That frozen `snapshot` is what
-  ever gets printed later, so a subsequent master-data edit can't retroactively
-  change an already-submitted sheet.
-- **Verify Requests tab** (visible to `qc`/`production`/`admin` only) lists pending
-  requests from everyone and lets a reviewer Verify or Reject (with a reason) —
-  this only touches the request's status, never master data.
+  `tds_requests` row with `status = 'pending'`. That frozen `snapshot` is what ever
+  gets printed later, so a subsequent master-data edit can't retroactively change an
+  already-submitted sheet. Requires `tds_requests.create`.
+- **Verify Requests tab** (visible to whichever role(s) have the `verify_tds` script
+  permission) lists pending requests from everyone and lets a reviewer Verify or
+  Reject (with a reason) — this only touches the request's status, never master data.
 - **My Requests tab** lists the signed-in user's own submissions with status. A
   verified request shows a "Print / Save PDF" button that paints and exports the
   frozen `snapshot`, not live data, and records `printed_at`/`pdf_base64` back onto
@@ -149,11 +183,11 @@ enforced by Supabase RLS (see `workflow-schema.sql`), not just a UI toggle.
 
 ## Data model notes for whoever continues this
 
-- **Thickness ranges are shared across all alloys** (`DATA.thicknessRanges`), editable
-  once in Admin → Thickness Bands. Each alloy/temper just fills in tensile/yield/
-  elongation/bend against that shared grid (`alloy.tempers[temperKey].values[rangeId]`)
-  rather than maintaining its own range boundaries — this reflects that ANSI/ASTM
-  gauge steps are standardized across non-aerospace alloys.
+- **Thickness bands are independent per alloy+temper** (`alloy.tempers[temperKey].
+  thicknessBands`, each `{min,max,tensileMin,tensileMax,yieldMin,elong,bend,verified}`)
+  — no shared grid across alloys. Each alloy+temper's QC data is entered straight from
+  its own ASTM copy in Admin → Alloy Properties, sorted and overlap-checked within
+  that alloy+temper only.
 - **Tempers ending in H2x** are ASTM B209 Note C "optional supplier" designations.
   Which base temper (H1x or H3x) they're equivalent to **varies by alloy** — e.g. for
   AA5005 specifically, H22 pairs with H32 (not H12), because that alloy uniquely has
