@@ -253,9 +253,6 @@
   .footer-strip{background:var(--ink); color:#cfd6da; font-size:10px; padding:9px 32px; display:flex; justify-content:space-between;}
   .foot-note{padding:10px 32px 18px; font-size:9.5px; color:#8a8a82; line-height:1.5;}
 
-  /* inline library disclosure (Admin sidebar) */
-  #libraryDetails table.libtable{font-size:11px;}
-  #libraryDetails table.libtable th, #libraryDetails table.libtable td{padding:5px 6px;}
   tr.row-hidden{display:none;}
 
   @media print{
@@ -480,28 +477,9 @@
       <button class="secondary" id="btnReset" type="button">Reset</button>
     </div>
 
-    <details id="libraryDetails" style="margin-top:22px;">
-      <summary id="btnOpenLibrary" style="cursor:pointer;padding:10px 14px;background:var(--steel);border-color:var(--steel);color:#fff;border-radius:var(--radius);font-weight:700;text-transform:uppercase;font-size:12px;letter-spacing:0.3px;list-style:none;">
-        ⚿ View Mechanical &amp; Chemistry Library
-      </summary>
-      <div style="margin-top:10px;">
-        <span class="tag" id="libTag">QC master · read only</span>
-        <input type="text" id="libSearch" placeholder="Search by alloy or temper (e.g. 3003, H14, H2x)…" style="width:100%;margin-top:8px;">
-        <p class="note">Values below are the certified QC master data. In normal use they populate the TDS automatically and cannot be edited here — switch to the Admin tab to modify them.</p>
-        <div style="overflow-x:auto;">
-          <p class="note" style="font-weight:600;">Mechanical properties (by thickness band)</p>
-          <table class="libtable" id="libTable">
-            <thead><tr><th>Alloy</th><th>Temper</th><th>Std</th><th>Thk band (mm)</th><th>Tensile (MPa)</th><th>Yield min (MPa)</th><th>Elong. min %</th><th>Bend</th></tr></thead>
-            <tbody id="libBody"></tbody>
-          </table>
-          <p class="note" style="margin-top:16px;font-weight:600;">Chemical composition limits (wt % max, unless a range or stated otherwise)</p>
-          <table class="libtable" id="chemTable">
-            <thead><tr><th>Alloy</th><th>Si</th><th>Fe</th><th>Cu</th><th>Mn</th><th>Mg</th><th>Cr</th><th>Zn</th><th>Ti</th><th>Each</th><th>Total</th><th>Al</th></tr></thead>
-            <tbody id="chemBody"></tbody>
-          </table>
-        </div>
-      </div>
-    </details>
+    <button type="button" id="btnOpenLibrary" style="margin-top:22px;width:100%;background:var(--steel);border-color:var(--steel);">
+      ⚿ View Mechanical &amp; Chemistry Library
+    </button>
 
     <div class="disclaimer">
       <strong>ANSI H35.2 note:</strong> Table 7.7a brackets coils by width in metric steps — up thru 1000mm, over 1000 thru 1500mm, over 1500 thru 2000mm, and so on. Only the "over 1000 thru 1500 mm" bracket (which covers this coil's 1220mm width) has confirmed thickness-tolerance figures on file; other brackets show "not verified" rather than a guessed number. Table 7.11 width tolerance is similarly only confirmed for the "over 600 thru 1500 mm" bracket, pending confirmation against your licensed ANSI H35.2 edition.<br><br>
@@ -639,6 +617,29 @@
 
       <div class="foot-note" id="footNote"></div>
       <div class="footer-strip"><span>Alumill Tech Gulf LLC — Quality Assurance</span><span id="footRef">—</span></div>
+    </div>
+
+    <div class="admin-main-panel hidden" id="libraryPanel">
+      <div class="admin-main-header" style="display:flex;align-items:center;justify-content:space-between;gap:16px;">
+        <div>
+          <h2>⚿ Mechanical &amp; Chemistry Library</h2>
+          <p>Values below are the certified QC master data. In normal use they populate the TDS automatically and cannot be edited here — switch to the Admin tab to modify them.</p>
+        </div>
+        <span class="tag" id="libTag">QC master · read only</span>
+      </div>
+      <input type="text" id="libSearch" placeholder="Search by alloy or temper (e.g. 3003, H14, H2x)…" style="width:100%;">
+      <div style="overflow-x:auto;">
+        <p class="note" style="font-weight:600;margin-top:16px;">Mechanical properties (by thickness band)</p>
+        <table class="libtable" id="libTable">
+          <thead><tr><th>Alloy</th><th>Temper</th><th>Std</th><th>Thk band (mm)</th><th>Tensile (MPa)</th><th>Yield min (MPa)</th><th>Elong. min %</th><th>Bend</th></tr></thead>
+          <tbody id="libBody"></tbody>
+        </table>
+        <p class="note" style="margin-top:16px;font-weight:600;">Chemical composition limits (wt % max, unless a range or stated otherwise)</p>
+        <table class="libtable" id="chemTable">
+          <thead><tr><th>Alloy</th><th>Si</th><th>Fe</th><th>Cu</th><th>Mn</th><th>Mg</th><th>Cr</th><th>Zn</th><th>Ti</th><th>Each</th><th>Total</th><th>Al</th></tr></thead>
+          <tbody id="chemBody"></tbody>
+        </table>
+      </div>
     </div>
 
     <div class="admin-main-panel hidden" id="myRequestsPanel">
@@ -1124,7 +1125,6 @@ const cmpTemperSel = document.getElementById('cmpTemperSel');
 const cmpPairList = document.getElementById('cmpPairList');
 const cmpThickInput = document.getElementById('cmpThickInput');
 const libTag = document.getElementById('libTag');
-const libraryDetails = document.getElementById('libraryDetails');
 const libSearch = document.getElementById('libSearch');
 
 const TDS_FOOT = "Standard declared per selected alloy (see Standard row). Thickness and width tolerances per ANSI H35.2 (Aluminum Association), applicable table and width band noted below. Tensile, yield, elongation, and bend are QC master-library values and are not customer-editable in normal use. This document supersedes any previously issued sheet for the same order reference.";
@@ -1510,6 +1510,7 @@ function setMode(newMode){
   });
   document.getElementById('myRequestsPanel').classList.toggle('hidden', mode!=='myrequests');
   document.getElementById('verifyRequestsPanel').classList.toggle('hidden', mode!=='verify');
+  document.getElementById('libraryPanel').classList.toggle('hidden', mode!=='library');
   document.getElementById('adminNoAccess').classList.toggle('hidden', !(mode==='admin' && !masterDataUnlocked));
   document.getElementById('adminUnlocked').classList.toggle('hidden', !masterDataUnlocked);
   document.getElementById('btnResetMaster').classList.toggle('hidden', !(mode==='admin' && canRunScript('reset_master_data')));
@@ -1527,6 +1528,7 @@ function setMode(newMode){
   else if(mode==='verify'){ loadVerifyQueue(); }
   else if(mode==='admin' && showRolesPanel){ renderRolesPermissionsPanel(); }
   else if(mode==='admin' && showUsersPanel){ renderUsersPanel(); }
+  else if(mode==='library'){ libSearch.value = ""; filterLibrary(""); libSearch.focus(); }
 }
 tabTds.addEventListener('click', ()=>setMode('tds'));
 tabCompare.addEventListener('click', ()=>setMode('compare'));
@@ -2728,14 +2730,7 @@ alloySel.addEventListener('change', ()=>{ refreshTempers(); render(); });
 });
 cmpThickInput.addEventListener('input', renderCompare);
 
-// Native <details> handles open/close; just reset the search box each time it opens.
-libraryDetails.addEventListener('toggle', ()=>{
-  if(libraryDetails.open){
-    libSearch.value = "";
-    filterLibrary("");
-    libSearch.focus();
-  }
-});
+document.getElementById('btnOpenLibrary').addEventListener('click', ()=>setMode('library'));
 
 function filterLibrary(query){
   const q = query.trim().toLowerCase();
